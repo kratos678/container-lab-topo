@@ -219,20 +219,46 @@ alternative pattern.
 ## Known limitations / not yet verified
 
 This sandbox has no running Docker daemon and no `containerlab` binary, so
-none of this could be built or deployed end-to-end here — it was authored
-directly against FRR's OSPF/LDP/BGP/VRRP/EVPN documentation and standard
-Linux VXLAN/VRF netdevice conventions, not validated against a live run.
-Before relying on it:
+this lab is authored and fixed against real deployment feedback from the
+user's own environment, not validated end to end from this sandbox itself.
 
-- Run the build/deploy steps and `tests/run-tests.sh`, and work through
-  any failures node by node using the manual `vtysh` commands above.
-- **The DC EVPN &harr; ISP L3VPN stitching on `border1` is the highest-risk
-  part of this design.** Whether EVPN-imported routes in `vrf TENANT-A`
-  are automatically re-advertised out the PE-CE eBGP session toward
-  pe2/pe4 (rather than needing an explicit `redistribute` statement) is
-  the one piece of FRR behavior here I could not confirm against live
-  output. If `dc-h1`/`dc-h2` don't show up in `show bgp vrf CUST-A
-  summary` output on pe2/pe4, start there.
+**Fixed from a real test run:**
+
+- `border1`, `leaf1`, and `leaf2`'s *default* (underlay) BGP instances were
+  missing `no bgp ebgp-requires-policy`. FRR enforces RFC 8212 by default:
+  an eBGP session without an explicit route-map/policy on an
+  address-family silently exchanges *nothing* in that AF, even though the
+  session itself shows Established. This was present on spine1/spine2 and
+  on border1's `vrf TENANT-A` instance, but missing on the three default
+  instances that actually carry the `l2vpn evpn` AF between the spines and
+  the DC devices — so EVPN sessions came up but no routes crossed them.
+  Fixed by adding the knob to all three.
+- The three end hosts' (`br-h1`, `dc-h1`, `dc-h2`) `exec:` blocks only ran
+  `ip addr add` / `ip route add`, never `ip link set eth1 up`. If
+  containerlab doesn't bring the veth up for you on a plain `linux`-kind
+  node, the host never gets a working interface at all — symptomatic of a
+  host that can't even ping its own directly-connected VRRP gateway.
+  Fixed by bringing the interface up explicitly first.
+- The test script itself had a real bug: several checks tested for a
+  neighbor's IP address appearing in `show bgp ... summary` output, which
+  is true whether or not the session is actually Established (the IP is
+  in the table regardless of state). Replaced those with a `bgp_estab`
+  helper that checks the neighbor's row isn't in a down/pending state.
+  Also fixed a check that expected leaf1 to receive leaf2's Type-2 host
+  route directly — L2VNIs stay import-isolated by route-target design;
+  what should actually cross between leaf1 and leaf2 is each other's
+  subnet as an EVPN Type-5 route via the shared L3VNI 5000 route-target.
+- Ping retries were on the same ~90s-per-attempt budget as control-plane
+  convergence checks, which made a genuinely broken data-plane check look
+  like a hang. Data-plane pings now use a separate, shorter retry budget
+  (~12s) since convergence is already checked earlier in the script.
+
+**Still worth double-checking on your next run:**
+
+- If `border1 vrf TENANT-A sees branch route` still fails after the
+  `ebgp-requires-policy` fix, check `show bgp vrf CUST-A ipv4 unicast` on
+  `pe2`/`pe4` directly — if the branch route isn't there either, the issue
+  is upstream in the VPNv4/OSPF redistribution chain, not on border1.
 - FRR's `daemons` file format and VRF/EVPN CLI have shifted across major
   versions; if a daemon won't start or a command is rejected, check
   `docker exec -it <node> cat /var/log/frr/frr.log` and compare against

@@ -10,8 +10,10 @@ set -u
 
 LAB="${1:-e2e-topology}"
 PREFIX="clab-${LAB}-"
-RETRY_MAX=18      # ~90s of polling for control-plane convergence
+RETRY_MAX=18       # ~90s of polling for control-plane convergence
 RETRY_SLEEP=5
+PING_RETRY_MAX=6   # ~12s per ping check: convergence is checked separately
+PING_RETRY_SLEEP=2 # above, so a failing ping shouldn't need a long timeout
 
 PASS=0
 FAIL=0
@@ -24,8 +26,12 @@ c_blue()  { printf '\033[34m%s\033[0m\n' "$1"; }
 vty() { docker exec "${PREFIX}$1" vtysh -c "$2" 2>/dev/null; }
 
 # check <label> <node> <vtysh-cmd> <expected-substring> [expected-count]
-# Retries until the command's output contains <expected-count> occurrences
-# (default 1) of <expected-substring>, or RETRY_MAX attempts are exhausted.
+# For route-table output (OSPF/LDP neighbor state, VRRP state, BGP route
+# tables): retries until <expected-count> occurrences of <expected-substring>
+# appear, or RETRY_MAX attempts are exhausted. Do NOT use this against a
+# "show bgp ... summary" table to test session state — the neighbor's IP
+# address appears there whether or not the session is established; use
+# bgp_estab for that instead.
 check() {
     local label="$1" n="$2" cmd="$3" pattern="$4" count="${5:-1}"
     local i out got
@@ -47,11 +53,36 @@ check() {
     return 1
 }
 
+# bgp_estab <label> <node> <summary-cmd> <neighbor-ip>
+# Passes once <neighbor-ip>'s row in a "show bgp ... summary" table is
+# Established (FRR prints a numeric PfxRcd there; a text state name means
+# it is NOT up yet).
+bgp_estab() {
+    local label="$1" n="$2" cmd="$3" neighbor="$4"
+    local i out line
+    for ((i = 0; i < RETRY_MAX; i++)); do
+        out="$(vty "$n" "$cmd")"
+        line="$(grep -E "^${neighbor//./\\.}[[:space:]]" <<<"$out")"
+        if [ -n "$line" ] && ! grep -qE 'Idle|Active|Connect|OpenSent|OpenConfirm|Never' <<<"$line"; then
+            c_green "  PASS  $label"
+            PASS=$((PASS + 1))
+            return 0
+        fi
+        sleep "$RETRY_SLEEP"
+    done
+    c_red "  FAIL  $label (neighbor $neighbor not Established)"
+    echo "        -- $n# vtysh -c \"$cmd\" --"
+    sed 's/^/        /' <<<"$out"
+    FAIL=$((FAIL + 1))
+    FAILED_CHECKS+=("$label")
+    return 1
+}
+
 # ping_check <label> <exec-container> <target-ip> [vrf-name]
 ping_check() {
     local label="$1" n="$2" target="$3" vrf="${4:-}"
     local i cmd out
-    for ((i = 0; i < RETRY_MAX; i++)); do
+    for ((i = 0; i < PING_RETRY_MAX; i++)); do
         if [ -n "$vrf" ]; then
             cmd=(docker exec "${PREFIX}${n}" ip vrf exec "$vrf" ping -c 2 -W 1 "$target")
         else
@@ -63,7 +94,7 @@ ping_check() {
             PASS=$((PASS + 1))
             return 0
         fi
-        sleep "$RETRY_SLEEP"
+        sleep "$PING_RETRY_SLEEP"
     done
     c_red "  FAIL  $label"
     sed 's/^/        /' <<<"$out"
@@ -93,25 +124,45 @@ done
 
 echo
 c_blue "== control plane: ISP L3VPN (VRF CUST-A) + iBGP VPNv4 =="
-check "pe1 CE session established (br-core1)" pe1 "show bgp vrf CUST-A summary" "100.64.1.1" 1
-check "pe3 CE session established (br-core1)" pe3 "show bgp vrf CUST-A summary" "100.64.1.5" 1
-check "pe2 CE session established (border1)"  pe2 "show bgp vrf CUST-A summary" "100.64.2.2" 1
-check "pe4 CE session established (border1)"  pe4 "show bgp vrf CUST-A summary" "100.64.2.6" 1
-check "rr1 reflects 4 VPNv4 peers"             rr1 "show bgp ipv4 vpn summary" "10.0.0."  4
-check "pe1 receives remote VPNv4 prefixes"     pe1 "show bgp ipv4 vpn summary" "10.0.0.2" 1
+bgp_estab "pe1 CE session established (br-core1)" pe1 "show bgp vrf CUST-A summary" "100.64.1.1"
+bgp_estab "pe3 CE session established (br-core1)" pe3 "show bgp vrf CUST-A summary" "100.64.1.5"
+bgp_estab "pe2 CE session established (border1)"  pe2 "show bgp vrf CUST-A summary" "100.64.2.2"
+bgp_estab "pe4 CE session established (border1)"  pe4 "show bgp vrf CUST-A summary" "100.64.2.6"
+bgp_estab "rr1 <-> pe1 VPNv4 session" rr1 "show bgp ipv4 vpn summary" "10.0.0.1"
+bgp_estab "rr1 <-> pe2 VPNv4 session" rr1 "show bgp ipv4 vpn summary" "10.0.0.3"
+bgp_estab "rr1 <-> pe3 VPNv4 session" rr1 "show bgp ipv4 vpn summary" "10.0.0.4"
+bgp_estab "rr1 <-> pe4 VPNv4 session" rr1 "show bgp ipv4 vpn summary" "10.0.0.5"
+check "pe1 has VPNv4 route to pe2 loopback (10.0.0.3/32)" pe1 "show bgp ipv4 vpn" "10.0.0.3/32" 1
 
 echo
-c_blue "== control plane: DC underlay eBGP + EVPN =="
-check "border1 underlay to spine1/spine2" border1 "show bgp summary" "10.2.12." 2
-check "spine1 underlay sessions"          spine1  "show bgp summary" "10.2.12." 3
-check "spine2 underlay sessions"          spine2  "show bgp summary" "10.2.12." 3
-check "leaf1 underlay to both spines"     leaf1   "show bgp summary" "10.2.12." 2
-check "leaf2 underlay to both spines"     leaf2   "show bgp summary" "10.2.12." 2
-check "leaf1 EVPN session established"    leaf1   "show bgp l2vpn evpn summary" "10.2.12." 2
-check "leaf2 EVPN session established"    leaf2   "show bgp l2vpn evpn summary" "10.2.12." 2
-check "border1 EVPN session established" border1 "show bgp l2vpn evpn summary" "10.2.12." 2
-check "leaf1 learns leaf2 host route (Type-2)" leaf1 "show bgp l2vpn evpn route" "10.2.120.11" 1
-check "border1 vrf TENANT-A sees branch route"  border1 "show bgp vrf TENANT-A ipv4 unicast" "10.1.10.0" 1
+c_blue "== control plane: DC underlay eBGP =="
+bgp_estab "border1 <-> spine1 underlay" border1 "show bgp summary" "10.2.12.2"
+bgp_estab "border1 <-> spine2 underlay" border1 "show bgp summary" "10.2.12.6"
+bgp_estab "spine1 <-> border1 underlay" spine1  "show bgp summary" "10.2.12.1"
+bgp_estab "spine1 <-> leaf1 underlay"   spine1  "show bgp summary" "10.2.12.10"
+bgp_estab "spine1 <-> leaf2 underlay"   spine1  "show bgp summary" "10.2.12.21"
+bgp_estab "spine2 <-> border1 underlay" spine2  "show bgp summary" "10.2.12.5"
+bgp_estab "spine2 <-> leaf2 underlay"   spine2  "show bgp summary" "10.2.12.14"
+bgp_estab "spine2 <-> leaf1 underlay"   spine2  "show bgp summary" "10.2.12.18"
+bgp_estab "leaf1 <-> spine1 underlay"   leaf1   "show bgp summary" "10.2.12.9"
+bgp_estab "leaf1 <-> spine2 underlay"   leaf1   "show bgp summary" "10.2.12.18"
+bgp_estab "leaf2 <-> spine2 underlay"   leaf2   "show bgp summary" "10.2.12.13"
+bgp_estab "leaf2 <-> spine1 underlay"   leaf2   "show bgp summary" "10.2.12.22"
+
+echo
+c_blue "== control plane: DC EVPN-VXLAN overlay =="
+bgp_estab "leaf1 EVPN session to spine1"   leaf1   "show bgp l2vpn evpn summary" "10.2.12.9"
+bgp_estab "leaf1 EVPN session to spine2"   leaf1   "show bgp l2vpn evpn summary" "10.2.12.18"
+bgp_estab "leaf2 EVPN session to spine2"   leaf2   "show bgp l2vpn evpn summary" "10.2.12.13"
+bgp_estab "leaf2 EVPN session to spine1"   leaf2   "show bgp l2vpn evpn summary" "10.2.12.22"
+bgp_estab "border1 EVPN session to spine1" border1 "show bgp l2vpn evpn summary" "10.2.12.2"
+bgp_estab "border1 EVPN session to spine2" border1 "show bgp l2vpn evpn summary" "10.2.12.6"
+# leaf1 does NOT import leaf2's L2VNI-10120 Type-2 routes (different VNI,
+# different route-target — L2 domains stay isolated by design). What
+# should cross is leaf2's subnet as an EVPN Type-5 route via the shared
+# L3VNI 5000 route-target, landing in leaf1's own vrf TENANT-A table.
+check "leaf1 vrf TENANT-A sees leaf2 subnet (Type-5)" leaf1 "show bgp vrf TENANT-A ipv4 unicast" "10.2.120.0" 1
+check "border1 vrf TENANT-A sees branch route"        border1 "show bgp vrf TENANT-A ipv4 unicast" "10.1.10.0" 1
 
 echo
 c_blue "== data plane: branch LAN =="

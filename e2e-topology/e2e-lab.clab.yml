@@ -59,6 +59,7 @@ topology:
       image: ghcr.io/srl-labs/network-multitool
       mgmt-ipv4: 10.255.0.105
       exec:
+        - ip link set eth1 up
         - ip addr add 10.1.10.11/24 dev eth1
         - ip route add default via 10.1.10.1
 
@@ -188,6 +189,7 @@ topology:
       image: ghcr.io/srl-labs/network-multitool
       mgmt-ipv4: 10.255.0.120
       exec:
+        - ip link set eth1 up
         - ip addr add 10.2.110.11/24 dev eth1
         - ip route add default via 10.2.110.1
 
@@ -196,6 +198,7 @@ topology:
       image: ghcr.io/srl-labs/network-multitool
       mgmt-ipv4: 10.255.0.121
       exec:
+        - ip link set eth1 up
         - ip addr add 10.2.120.11/24 dev eth1
         - ip route add default via 10.2.120.1
 
