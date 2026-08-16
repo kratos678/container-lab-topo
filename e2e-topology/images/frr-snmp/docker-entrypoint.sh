@@ -20,19 +20,22 @@ chown frr:frr /var/log/frr
 echo "[entrypoint] starting rsyslogd (local + remote log forwarding)..."
 rsyslogd
 
-# net.mpls.platform_labels and net.mpls.conf.default.input are set at
-# container creation via clab's "sysctls:" block (the same mechanism
-# already used for the ipv4 sysctls below) — that's the reliable path;
-# writing them here via "sysctl -w" after the container is already
-# running was silently failing to take effect on some nodes (kernel
-# stayed at the default net.mpls.platform_labels=0, so zebra rejected
-# every LDP-bound label with "Label >= configured maximum", and the
-# kernel MPLS FIB never got programmed even though LDP itself looked
-# fine). What genuinely can't be done ahead of time is enabling MPLS
-# input per-interface, since clab's static sysctls block can't enumerate
-# this node's interface names — so that part still happens here, once
-# per interface present at boot. Requires mpls_router/mpls_iptunnel
-# loaded on the clab host first (modprobe mpls_router mpls_iptunnel).
+# net.mpls.platform_labels is set at container creation via clab's
+# "sysctls:" block (the same mechanism already used for the ipv4
+# sysctls below) — that's the reliable path; writing it here via
+# "sysctl -w" after the container is already running was silently
+# failing to take effect on some nodes (kernel stayed at the default
+# net.mpls.platform_labels=0, so zebra rejected every LDP-bound label
+# with "Label >= configured maximum", and the kernel MPLS FIB never got
+# programmed even though LDP itself looked fine).
+#
+# Per-interface MPLS input still has to be enabled here rather than in
+# clab's static sysctls block: unlike net.ipv4.conf, net.mpls.conf has
+# no "default"/"all" entry — /proc/sys/net/mpls/conf only ever contains
+# real interface names, created dynamically as each interface appears —
+# so there's no way to pre-set this ahead of the interfaces existing.
+# Requires mpls_router/mpls_iptunnel loaded on the clab host first
+# (modprobe mpls_router mpls_iptunnel).
 if [ -d /proc/sys/net/mpls ]; then
     for ifc in /sys/class/net/*; do
         i=$(basename "$ifc")

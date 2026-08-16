@@ -24,7 +24,14 @@ topology:
       # FIB never gets programmed, even though LDP itself looks fine).
       # Requires mpls_router/mpls_iptunnel loaded on the clab host first
       # (see README Prerequisites) or the container fails to start.
-      net.mpls.conf.default.input: 1
+      #
+      # NOTE: unlike net.ipv4.conf, net.mpls.conf has no synthetic
+      # "default"/"all" entry — /proc/sys/net/mpls/conf only ever
+      # contains real interface names, created dynamically as each
+      # interface appears. "net.mpls.conf.default.input" does not exist
+      # as a sysctl at all; setting it here would fail container
+      # creation outright. Per-interface MPLS input is enabled by the
+      # entrypoint instead, once each real interface exists.
       net.mpls.platform_labels: 1048575
 
   nodes:
