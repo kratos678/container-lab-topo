@@ -7,7 +7,7 @@ name: e2e-topology
 topology:
   defaults:
     kind: linux
-    image: clab-frr-snmp:e2e
+    image: frr:e2e
     cap-add:
       - NET_ADMIN
       - NET_RAW
