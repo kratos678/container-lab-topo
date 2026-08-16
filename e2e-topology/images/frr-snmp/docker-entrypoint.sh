@@ -53,10 +53,15 @@ fi
 
 # Node-specific Linux networking that must exist before FRR starts:
 # VLAN trunking on the branch access switch, or VXLAN/bridge/VRF
-# netdevices for the DC EVPN-VXLAN fabric.
-if [ -x /etc/frr-lab/prestart.sh ]; then
+# netdevices for the DC EVPN-VXLAN fabric. Invoked via "bash <file>"
+# rather than executing the bind-mounted file directly ([ -x ... ] +
+# direct exec) — a bind-mounted file's execute bit depends on whatever
+# it was on the clab host, which can be lost in some clone/transfer
+# paths, and there's no reason this needs it: bash can run any readable
+# script regardless of its own permission bits.
+if [ -f /etc/frr-lab/prestart.sh ]; then
     echo "[entrypoint] running /etc/frr-lab/prestart.sh..."
-    /etc/frr-lab/prestart.sh
+    bash /etc/frr-lab/prestart.sh
 fi
 
 # snmpd must be up first: it is the AgentX master that FRR's zebra/bgpd/ospfd
@@ -75,14 +80,14 @@ echo "[entrypoint] starting FRR daemons enabled in /etc/frr/daemons..."
 # where EVPN Type-5 route generation doesn't pick up a VRF's L3VNI
 # mapping on the very first config load, needing a toggle-off/on of
 # "advertise-all-vni" (or similar) once the daemon is confirmed running.
-if [ -x /etc/frr-lab/poststart.sh ]; then
+if [ -f /etc/frr-lab/poststart.sh ]; then
     echo "[entrypoint] waiting for vtysh to be ready..."
     for i in $(seq 1 30); do
         vtysh -c "show version" >/dev/null 2>&1 && break
         sleep 1
     done
     echo "[entrypoint] running /etc/frr-lab/poststart.sh..."
-    /etc/frr-lab/poststart.sh
+    bash /etc/frr-lab/poststart.sh
 fi
 
 echo "[entrypoint] node ready."
