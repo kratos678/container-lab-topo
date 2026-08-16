@@ -100,34 +100,27 @@ docker exec -it clab-frr-ospf-bgp-snmp-r1 lldpcli show neighbors
 ## Verifying SNMP
 
 From the clab host (or any host that can reach the mgmt network), using the
-SNMPv3 user configured in `configs/*/snmpd.conf`:
+SNMPv2c community configured in `configs/*/snmpd.conf`:
 
 ```bash
 # System / sanity check
-snmpwalk -v3 -u selector-mon -l authPriv -a SHA -A 'ChangeMe-Auth-Passphrase1' \
-         -x AES -X 'ChangeMe-Priv-Passphrase1' 172.100.100.11 1.3.6.1.2.1.1
+snmpwalk -v2c -c public 172.100.100.11 1.3.6.1.2.1.1
 
 # Interfaces (IF-MIB)
-snmpwalk -v3 -u selector-mon -l authPriv -a SHA -A 'ChangeMe-Auth-Passphrase1' \
-         -x AES -X 'ChangeMe-Priv-Passphrase1' 172.100.100.11 1.3.6.1.2.1.2.2
+snmpwalk -v2c -c public 172.100.100.11 1.3.6.1.2.1.2.2
 
 # CPU / memory (HOST-RESOURCES-MIB, UCD-SNMP-MIB)
-snmpwalk -v3 -u selector-mon -l authPriv -a SHA -A 'ChangeMe-Auth-Passphrase1' \
-         -x AES -X 'ChangeMe-Priv-Passphrase1' 172.100.100.11 1.3.6.1.2.1.25
-snmpwalk -v3 -u selector-mon -l authPriv -a SHA -A 'ChangeMe-Auth-Passphrase1' \
-         -x AES -X 'ChangeMe-Priv-Passphrase1' 172.100.100.11 1.3.6.1.4.1.2021
+snmpwalk -v2c -c public 172.100.100.11 1.3.6.1.2.1.25
+snmpwalk -v2c -c public 172.100.100.11 1.3.6.1.4.1.2021
 
 # OSPF (OSPF-MIB, via FRR AgentX)
-snmpwalk -v3 -u selector-mon -l authPriv -a SHA -A 'ChangeMe-Auth-Passphrase1' \
-         -x AES -X 'ChangeMe-Priv-Passphrase1' 172.100.100.11 1.3.6.1.2.1.14
+snmpwalk -v2c -c public 172.100.100.11 1.3.6.1.2.1.14
 
 # BGP (BGP4-MIB, via FRR AgentX)
-snmpwalk -v3 -u selector-mon -l authPriv -a SHA -A 'ChangeMe-Auth-Passphrase1' \
-         -x AES -X 'ChangeMe-Priv-Passphrase1' 172.100.100.11 1.3.6.1.2.1.15
+snmpwalk -v2c -c public 172.100.100.11 1.3.6.1.2.1.15
 
 # LLDP (LLDP-MIB, via lldpd AgentX)
-snmpwalk -v3 -u selector-mon -l authPriv -a SHA -A 'ChangeMe-Auth-Passphrase1' \
-         -x AES -X 'ChangeMe-Priv-Passphrase1' 172.100.100.11 1.0.8802.1.1.2
+snmpwalk -v2c -c public 172.100.100.11 1.0.8802.1.1.2
 ```
 
 If a walk against one of the AgentX-backed trees (OSPF/BGP/LLDP) comes back
@@ -138,17 +131,19 @@ starts them in order, but a very slow first boot could still race).
 
 ## Security notes
 
-- `configs/*/snmpd.conf` ships with placeholder SNMPv3 auth/priv passphrases
-  (`ChangeMe-Auth-Passphrase1` / `ChangeMe-Priv-Passphrase1`) and a single
-  read-only view covering the whole MIB tree. **Change these before using
-  the image outside an isolated lab.** For any shared or production-adjacent
-  environment, narrow the `view all included .1` line to only the subtrees
-  you actually poll, and check with your security team before exposing SNMP
-  beyond the lab's management network.
-- The commented-out `rocommunity` line is SNMPv2c (unauthenticated,
-  cleartext community string) and is left disabled by default; only enable
-  it if you specifically need v2c for a monitoring tool and understand the
-  tradeoff.
+- `configs/*/snmpd.conf` uses SNMPv2c with the well-known community string
+  `public`, reachable from any address, over a single read-only view covering
+  the whole MIB tree. SNMPv2c communities are unauthenticated and sent in
+  cleartext — this is only appropriate inside an isolated lab network.
+  **Do not reuse this config as-is on anything reachable outside the lab.**
+  Before using it anywhere less isolated: pick a non-default community
+  string, restrict `rocommunity` to the specific polling host/subnet (e.g.
+  `rocommunity public 172.100.100.0/24 -V all`), narrow the
+  `view all included .1` line to only the subtrees you actually poll, and
+  check with your security team first.
+- A commented-out SNMPv3 (authenticated + encrypted) alternative is included
+  in each `snmpd.conf` if you need something stronger than v2c — swap the
+  placeholder passphrases before enabling it.
 - `agentXPerms 0777 0777` on `/var/agentx/master` is intentionally permissive
   so both FRR and lldpd (different users) can attach; this is reasonable for
   a single-purpose lab container but should be scoped down (shared group,
