@@ -173,12 +173,17 @@ sudo containerlab destroy -t e2e-lab.clab.yml
 ./tests/run-tests.sh e2e-topology
 ```
 
-This polls (up to ~90s) for OSPF/LDP/VRRP convergence on the branch and
-ISP core, BGP VRF/VPNv4 sessions on the PEs and route reflector, the DC's
-underlay eBGP + EVPN sessions and a learned EVPN host route, then runs a
-ping matrix: branch LAN gateway, PE-CE circuits, intra-DC (leaf1&harr;leaf2
-symmetric IRB), and full branch&harr;DC end-to-end. It prints PASS/FAIL per
-check and exits non-zero if anything failed.
+This polls (up to ~50s per check) for OSPF/LDP/VRRP convergence on the
+branch and ISP core, BGP VRF/VPNv4 sessions on the PEs and route
+reflector, the DC's underlay eBGP + EVPN sessions and a learned EVPN host
+route, then runs a ping matrix: branch LAN gateway, PE-CE circuits,
+intra-DC (leaf1&harr;leaf2 symmetric IRB), and full branch&harr;DC
+end-to-end. Kernel-level checks (the MPLS FIB) and pings use a shorter
+~12s budget of their own, since that state either shows up fast or needs
+an actual fix, not more polling. Each check prints a "." for every retry
+attempt while it's still waiting, so a slow run reads as "still
+checking", not as hung. It prints PASS/FAIL per check and exits non-zero
+if anything failed.
 
 Useful manual checks while debugging a specific layer:
 

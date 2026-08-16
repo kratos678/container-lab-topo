@@ -10,10 +10,12 @@ set -u
 
 LAB="${1:-e2e-topology}"
 PREFIX="clab-${LAB}-"
-RETRY_MAX=18       # ~90s of polling for control-plane convergence
+RETRY_MAX=10        # ~50s of polling for control-plane convergence
 RETRY_SLEEP=5
-PING_RETRY_MAX=6   # ~12s per ping check: convergence is checked separately
-PING_RETRY_SLEEP=2 # above, so a failing ping shouldn't need a long timeout
+PING_RETRY_MAX=6    # ~12s per ping check: convergence is checked separately
+PING_RETRY_SLEEP=2  # above, so a failing ping shouldn't need a long timeout
+KERNEL_RETRY_MAX=6  # ~12s: kernel FIB state either shows up fast once the
+KERNEL_RETRY_SLEEP=2 # control plane is up, or won't show up without a fix
 
 PASS=0
 FAIL=0
@@ -35,16 +37,20 @@ vty() { docker exec "${PREFIX}$1" vtysh -c "$2" 2>/dev/null; }
 check() {
     local label="$1" n="$2" cmd="$3" pattern="$4" count="${5:-1}"
     local i out got
+    printf '  ..    %s ' "$label"
     for ((i = 0; i < RETRY_MAX; i++)); do
         out="$(vty "$n" "$cmd")"
         got="$(grep -o -- "$pattern" <<<"$out" | wc -l)"
         if [ "$got" -ge "$count" ]; then
+            printf '\n'
             c_green "  PASS  $label"
             PASS=$((PASS + 1))
             return 0
         fi
+        printf '.'
         sleep "$RETRY_SLEEP"
     done
+    printf '\n'
     c_red "  FAIL  $label (wanted >= $count x '$pattern', got $got)"
     echo "        -- $n# vtysh -c \"$cmd\" --"
     sed 's/^/        /' <<<"$out"
@@ -60,16 +66,20 @@ check() {
 bgp_estab() {
     local label="$1" n="$2" cmd="$3" neighbor="$4"
     local i out line
+    printf '  ..    %s ' "$label"
     for ((i = 0; i < RETRY_MAX; i++)); do
         out="$(vty "$n" "$cmd")"
         line="$(grep -E "^${neighbor//./\\.}[[:space:]]" <<<"$out")"
         if [ -n "$line" ] && ! grep -qE 'Idle|Active|Connect|OpenSent|OpenConfirm|Never' <<<"$line"; then
+            printf '\n'
             c_green "  PASS  $label"
             PASS=$((PASS + 1))
             return 0
         fi
+        printf '.'
         sleep "$RETRY_SLEEP"
     done
+    printf '\n'
     c_red "  FAIL  $label (neighbor $neighbor not Established)"
     echo "        -- $n# vtysh -c \"$cmd\" --"
     sed 's/^/        /' <<<"$out"
@@ -81,18 +91,26 @@ bgp_estab() {
 # kernel_check <label> <node> <shell-cmd>
 # Retries until <shell-cmd> (run inside the container) produces non-empty
 # stdout. Use for kernel-level state vtysh can't see, e.g. the MPLS FIB.
+# Uses its own short retry budget (KERNEL_RETRY_MAX/SLEEP): kernel FIB
+# state either shows up fast once the control plane is up, or needs an
+# actual fix (missing kernel module, failed redeploy) that no amount of
+# extra polling will resolve.
 kernel_check() {
     local label="$1" n="$2" cmd="$3"
     local i out
-    for ((i = 0; i < RETRY_MAX; i++)); do
+    printf '  ..    %s ' "$label"
+    for ((i = 0; i < KERNEL_RETRY_MAX; i++)); do
         out="$(docker exec "${PREFIX}${n}" sh -c "$cmd" 2>/dev/null)"
         if [ -n "$out" ]; then
+            printf '\n'
             c_green "  PASS  $label"
             PASS=$((PASS + 1))
             return 0
         fi
-        sleep "$RETRY_SLEEP"
+        printf '.'
+        sleep "$KERNEL_RETRY_SLEEP"
     done
+    printf '\n'
     c_red "  FAIL  $label (empty output from: $cmd)"
     FAIL=$((FAIL + 1))
     FAILED_CHECKS+=("$label")
@@ -108,16 +126,20 @@ kernel_check() {
 vpn_nexthop_check() {
     local label="$1" n="$2" prefix="$3" want="$4" reject="$5"
     local i out
+    printf '  ..    %s ' "$label"
     for ((i = 0; i < RETRY_MAX; i++)); do
         out="$(vty "$n" "show bgp ipv4 vpn ${prefix}")"
         if grep -qE "^[[:space:]]+${want//./\\.}[[:space:]]*\(" <<<"$out" \
            && ! grep -qE "^[[:space:]]+${reject//./\\.}[[:space:]]*\(" <<<"$out"; then
+            printf '\n'
             c_green "  PASS  $label"
             PASS=$((PASS + 1))
             return 0
         fi
+        printf '.'
         sleep "$RETRY_SLEEP"
     done
+    printf '\n'
     c_red "  FAIL  $label (want next-hop $want, not $reject)"
     echo "        -- $n# vtysh -c \"show bgp ipv4 vpn $prefix\" --"
     sed 's/^/        /' <<<"$out"
@@ -164,6 +186,7 @@ config_grep_check() {
 ping_check() {
     local label="$1" n="$2" target="$3" vrf="${4:-}"
     local i cmd out
+    printf '  ..    %s ' "$label"
     for ((i = 0; i < PING_RETRY_MAX; i++)); do
         if [ -n "$vrf" ]; then
             cmd=(docker exec "${PREFIX}${n}" ip vrf exec "$vrf" ping -c 2 -W 1 "$target")
@@ -172,12 +195,15 @@ ping_check() {
         fi
         out="$("${cmd[@]}" 2>&1)"
         if grep -q ' 0% packet loss' <<<"$out"; then
+            printf '\n'
             c_green "  PASS  $label"
             PASS=$((PASS + 1))
             return 0
         fi
+        printf '.'
         sleep "$PING_RETRY_SLEEP"
     done
+    printf '\n'
     c_red "  FAIL  $label"
     sed 's/^/        /' <<<"$out"
     FAIL=$((FAIL + 1))
