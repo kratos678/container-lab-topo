@@ -1,0 +1,250 @@
+name: e2e-topology
+
+# Branch <-> ISP <-> Data-Centre lab: 18 FRR nodes (routers + one L2 access
+# switch) plus 3 end hosts, 33 links, OOB management on 10.255.0.0/24.
+# See README.md for the full addressing plan and protocol summary.
+
+topology:
+  defaults:
+    kind: linux
+    image: clab-frr-snmp:e2e
+    cap-add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+    sysctls:
+      net.ipv4.ip_forward: 1
+      net.ipv4.conf.all.rp_filter: 0
+
+  nodes:
+    # ---------------------------------------------------------------- BRANCH
+    br-core1:
+      mgmt-ipv4: 10.255.0.101
+      binds:
+        - configs/branch/br-core1/daemons:/etc/frr/daemons
+        - configs/branch/br-core1/frr.conf:/etc/frr/frr.conf
+        - configs/branch/br-core1/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/branch/br-core1/snmpd.conf:/etc/snmp/snmpd.conf
+
+    br-dist1:
+      mgmt-ipv4: 10.255.0.102
+      binds:
+        - configs/branch/br-dist1/daemons:/etc/frr/daemons
+        - configs/branch/br-dist1/frr.conf:/etc/frr/frr.conf
+        - configs/branch/br-dist1/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/branch/br-dist1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/branch/br-dist1/prestart.sh:/etc/frr-lab/prestart.sh
+
+    br-dist2:
+      mgmt-ipv4: 10.255.0.103
+      binds:
+        - configs/branch/br-dist2/daemons:/etc/frr/daemons
+        - configs/branch/br-dist2/frr.conf:/etc/frr/frr.conf
+        - configs/branch/br-dist2/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/branch/br-dist2/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/branch/br-dist2/prestart.sh:/etc/frr-lab/prestart.sh
+
+    br-acc1:
+      # Pure L2 access switch: no FRR routing daemons (daemons file is all
+      # "no"), just a VLAN-aware Linux bridge built by prestart.sh, LLDP,
+      # and SNMP for interface/CPU/memory monitoring.
+      mgmt-ipv4: 10.255.0.104
+      binds:
+        - configs/branch/br-acc1/daemons:/etc/frr/daemons
+        - configs/branch/br-acc1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/branch/br-acc1/prestart.sh:/etc/frr-lab/prestart.sh
+
+    br-h1:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool
+      mgmt-ipv4: 10.255.0.105
+      exec:
+        - ip addr add 10.1.10.11/24 dev eth1
+        - ip route add default via 10.1.10.1
+
+    # ------------------------------------------------------------------ ISP
+    pe1:
+      mgmt-ipv4: 10.255.0.106
+      binds:
+        - configs/isp/pe1/daemons:/etc/frr/daemons
+        - configs/isp/pe1/frr.conf:/etc/frr/frr.conf
+        - configs/isp/pe1/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/isp/pe1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/isp/pe1/prestart.sh:/etc/frr-lab/prestart.sh
+
+    pe2:
+      mgmt-ipv4: 10.255.0.107
+      binds:
+        - configs/isp/pe2/daemons:/etc/frr/daemons
+        - configs/isp/pe2/frr.conf:/etc/frr/frr.conf
+        - configs/isp/pe2/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/isp/pe2/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/isp/pe2/prestart.sh:/etc/frr-lab/prestart.sh
+
+    pe3:
+      mgmt-ipv4: 10.255.0.108
+      binds:
+        - configs/isp/pe3/daemons:/etc/frr/daemons
+        - configs/isp/pe3/frr.conf:/etc/frr/frr.conf
+        - configs/isp/pe3/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/isp/pe3/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/isp/pe3/prestart.sh:/etc/frr-lab/prestart.sh
+
+    pe4:
+      mgmt-ipv4: 10.255.0.109
+      binds:
+        - configs/isp/pe4/daemons:/etc/frr/daemons
+        - configs/isp/pe4/frr.conf:/etc/frr/frr.conf
+        - configs/isp/pe4/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/isp/pe4/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/isp/pe4/prestart.sh:/etc/frr-lab/prestart.sh
+
+    p1:
+      mgmt-ipv4: 10.255.0.110
+      binds:
+        - configs/isp/p1/daemons:/etc/frr/daemons
+        - configs/isp/p1/frr.conf:/etc/frr/frr.conf
+        - configs/isp/p1/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/isp/p1/snmpd.conf:/etc/snmp/snmpd.conf
+
+    p2:
+      mgmt-ipv4: 10.255.0.111
+      binds:
+        - configs/isp/p2/daemons:/etc/frr/daemons
+        - configs/isp/p2/frr.conf:/etc/frr/frr.conf
+        - configs/isp/p2/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/isp/p2/snmpd.conf:/etc/snmp/snmpd.conf
+
+    p3:
+      mgmt-ipv4: 10.255.0.112
+      binds:
+        - configs/isp/p3/daemons:/etc/frr/daemons
+        - configs/isp/p3/frr.conf:/etc/frr/frr.conf
+        - configs/isp/p3/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/isp/p3/snmpd.conf:/etc/snmp/snmpd.conf
+
+    p4:
+      mgmt-ipv4: 10.255.0.113
+      binds:
+        - configs/isp/p4/daemons:/etc/frr/daemons
+        - configs/isp/p4/frr.conf:/etc/frr/frr.conf
+        - configs/isp/p4/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/isp/p4/snmpd.conf:/etc/snmp/snmpd.conf
+
+    rr1:
+      mgmt-ipv4: 10.255.0.114
+      binds:
+        - configs/isp/rr1/daemons:/etc/frr/daemons
+        - configs/isp/rr1/frr.conf:/etc/frr/frr.conf
+        - configs/isp/rr1/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/isp/rr1/snmpd.conf:/etc/snmp/snmpd.conf
+
+    # ------------------------------------------------------------- DATA CENTRE
+    border1:
+      mgmt-ipv4: 10.255.0.115
+      binds:
+        - configs/dc/border1/daemons:/etc/frr/daemons
+        - configs/dc/border1/frr.conf:/etc/frr/frr.conf
+        - configs/dc/border1/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/dc/border1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/dc/border1/prestart.sh:/etc/frr-lab/prestart.sh
+
+    spine1:
+      mgmt-ipv4: 10.255.0.116
+      binds:
+        - configs/dc/spine1/daemons:/etc/frr/daemons
+        - configs/dc/spine1/frr.conf:/etc/frr/frr.conf
+        - configs/dc/spine1/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/dc/spine1/snmpd.conf:/etc/snmp/snmpd.conf
+
+    spine2:
+      mgmt-ipv4: 10.255.0.117
+      binds:
+        - configs/dc/spine2/daemons:/etc/frr/daemons
+        - configs/dc/spine2/frr.conf:/etc/frr/frr.conf
+        - configs/dc/spine2/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/dc/spine2/snmpd.conf:/etc/snmp/snmpd.conf
+
+    leaf1:
+      mgmt-ipv4: 10.255.0.118
+      binds:
+        - configs/dc/leaf1/daemons:/etc/frr/daemons
+        - configs/dc/leaf1/frr.conf:/etc/frr/frr.conf
+        - configs/dc/leaf1/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/dc/leaf1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/dc/leaf1/prestart.sh:/etc/frr-lab/prestart.sh
+
+    leaf2:
+      mgmt-ipv4: 10.255.0.119
+      binds:
+        - configs/dc/leaf2/daemons:/etc/frr/daemons
+        - configs/dc/leaf2/frr.conf:/etc/frr/frr.conf
+        - configs/dc/leaf2/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/dc/leaf2/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/dc/leaf2/prestart.sh:/etc/frr-lab/prestart.sh
+
+    dc-h1:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool
+      mgmt-ipv4: 10.255.0.120
+      exec:
+        - ip addr add 10.2.110.11/24 dev eth1
+        - ip route add default via 10.2.110.1
+
+    dc-h2:
+      kind: linux
+      image: ghcr.io/srl-labs/network-multitool
+      mgmt-ipv4: 10.255.0.121
+      exec:
+        - ip addr add 10.2.120.11/24 dev eth1
+        - ip route add default via 10.2.120.1
+
+  links:
+    # --- Branch internal ---
+    - endpoints: ["br-h1:eth1", "br-acc1:eth3"]
+    - endpoints: ["br-acc1:eth1", "br-dist1:eth1"]          # trunk VLAN 10/20
+    - endpoints: ["br-acc1:eth2", "br-dist2:eth1"]          # trunk VLAN 10/20
+    - endpoints: ["br-dist1:eth3", "br-dist2:eth3"]         # dist-dist peer link
+    - endpoints: ["br-dist1:eth2", "br-core1:eth1"]
+    - endpoints: ["br-dist2:eth2", "br-core1:eth2"]
+
+    # --- WAN: branch <-> ISP (dual-homed PE-CE) ---
+    - endpoints: ["br-core1:eth3", "pe1:eth1"]               # circuit A 100.64.1.0/30
+    - endpoints: ["br-core1:eth4", "pe3:eth1"]               # circuit B 100.64.1.4/30
+
+    # --- ISP core: OSPF + LDP full/partial mesh ---
+    - endpoints: ["pe1:eth2", "p1:eth1"]
+    - endpoints: ["p1:eth2", "p2:eth1"]
+    - endpoints: ["p2:eth2", "pe2:eth2"]
+    - endpoints: ["pe3:eth2", "p3:eth1"]
+    - endpoints: ["p3:eth2", "p4:eth1"]
+    - endpoints: ["p4:eth2", "pe4:eth2"]
+    - endpoints: ["pe1:eth3", "p3:eth3"]                     # diagonal
+    - endpoints: ["pe3:eth3", "p1:eth3"]                     # diagonal
+    - endpoints: ["pe2:eth3", "p4:eth3"]                     # diagonal
+    - endpoints: ["pe4:eth3", "p2:eth3"]                     # diagonal
+    - endpoints: ["p1:eth4", "p3:eth4"]                      # vertical
+    - endpoints: ["p2:eth4", "p4:eth4"]                      # vertical
+    - endpoints: ["p1:eth5", "p4:eth5"]                      # cross-core
+
+    # --- ISP route-reflector uplinks ---
+    - endpoints: ["rr1:eth1", "p1:eth6"]
+    - endpoints: ["rr1:eth2", "p2:eth5"]
+
+    # --- WAN: ISP <-> DC border (dual-homed PE-CE) ---
+    - endpoints: ["pe2:eth1", "border1:eth1"]                # circuit A 100.64.2.0/30
+    - endpoints: ["pe4:eth1", "border1:eth2"]                # circuit B 100.64.2.4/30
+
+    # --- DC fabric: eBGP underlay + EVPN-VXLAN overlay ---
+    - endpoints: ["border1:eth3", "spine1:eth1"]
+    - endpoints: ["border1:eth4", "spine2:eth1"]
+    - endpoints: ["spine1:eth2", "leaf1:eth1"]
+    - endpoints: ["spine2:eth2", "leaf2:eth1"]
+    - endpoints: ["leaf1:eth2", "spine2:eth3"]                # cross
+    - endpoints: ["leaf2:eth2", "spine1:eth3"]                # cross
+    - endpoints: ["leaf1:eth3", "dc-h1:eth1"]
+    - endpoints: ["leaf2:eth3", "dc-h2:eth1"]
+
+mgmt:
+  network: e2e-lab-mgmt
+  ipv4-subnet: 10.255.0.0/24

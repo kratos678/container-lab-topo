@@ -1,0 +1,10 @@
+# Pure L2 access switch: no FRR routing daemons run here. The VLAN-aware
+# Linux bridge is built by prestart.sh; only lldpd + snmpd run (started by
+# the shared entrypoint regardless of this file).
+zebra=no
+bgpd=no
+ospfd=no
+staticd=no
+vrrpd=no
+watchfrr_enable=no
+vtysh_enable=no
