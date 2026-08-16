@@ -58,6 +58,21 @@ lldpd -x
 echo "[entrypoint] starting FRR daemons enabled in /etc/frr/daemons..."
 /usr/lib/frr/frrinit.sh start
 
+# Node-specific vtysh commands that must run AFTER FRR (specifically
+# bgpd) is up. Used to work around a known FRR startup-ordering issue
+# where EVPN Type-5 route generation doesn't pick up a VRF's L3VNI
+# mapping on the very first config load, needing a toggle-off/on of
+# "advertise-all-vni" (or similar) once the daemon is confirmed running.
+if [ -x /etc/frr-lab/poststart.sh ]; then
+    echo "[entrypoint] waiting for vtysh to be ready..."
+    for i in $(seq 1 30); do
+        vtysh -c "show version" >/dev/null 2>&1 && break
+        sleep 1
+    done
+    echo "[entrypoint] running /etc/frr-lab/poststart.sh..."
+    /etc/frr-lab/poststart.sh
+fi
+
 echo "[entrypoint] node ready."
 touch /var/log/frr/frr.log /var/log/snmpd.log
 tail -F /var/log/frr/frr.log /var/log/snmpd.log &

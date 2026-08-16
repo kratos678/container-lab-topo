@@ -163,6 +163,7 @@ topology:
         - configs/dc/border1/snmpd.conf:/etc/snmp/snmpd.conf
         - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/dc/border1/prestart.sh:/etc/frr-lab/prestart.sh
+        - configs/dc/border1/poststart.sh:/etc/frr-lab/poststart.sh
 
     spine1:
       mgmt-ipv4: 10.255.0.116
@@ -191,6 +192,7 @@ topology:
         - configs/dc/leaf1/snmpd.conf:/etc/snmp/snmpd.conf
         - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/dc/leaf1/prestart.sh:/etc/frr-lab/prestart.sh
+        - configs/dc/leaf1/poststart.sh:/etc/frr-lab/poststart.sh
 
     leaf2:
       mgmt-ipv4: 10.255.0.119
@@ -201,6 +203,7 @@ topology:
         - configs/dc/leaf2/snmpd.conf:/etc/snmp/snmpd.conf
         - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/dc/leaf2/prestart.sh:/etc/frr-lab/prestart.sh
+        - configs/dc/leaf2/poststart.sh:/etc/frr-lab/poststart.sh
 
     dc-h1:
       kind: linux
