@@ -214,7 +214,11 @@ bgp_estab "rr1 <-> pe1 VPNv4 session" rr1 "show bgp ipv4 vpn summary" "10.0.0.1"
 bgp_estab "rr1 <-> pe2 VPNv4 session" rr1 "show bgp ipv4 vpn summary" "10.0.0.3"
 bgp_estab "rr1 <-> pe3 VPNv4 session" rr1 "show bgp ipv4 vpn summary" "10.0.0.4"
 bgp_estab "rr1 <-> pe4 VPNv4 session" rr1 "show bgp ipv4 vpn summary" "10.0.0.5"
-check "pe1 has VPNv4 route to pe2 loopback (10.0.0.3/32)" pe1 "show bgp ipv4 vpn" "10.0.0.3/32" 1
+# VPNv4 carries VRF customer prefixes (RD-tagged), never a PE's own
+# loopback — that's reachable via the underlying IGP instead. Check for
+# an actual DC-side customer prefix that pe2 originates once border1's
+# vrf TENANT-A -> pe2 PE-CE leg is advertising it.
+check "pe1 sees a DC-side VPNv4 route from pe2 (RD 10.0.0.3:100)" pe1 "show bgp ipv4 vpn" "Route Distinguisher: 10.0.0.3:100" 1
 
 echo
 c_blue "== control plane: DC underlay eBGP =="
@@ -225,7 +229,7 @@ bgp_estab "spine1 <-> leaf1 underlay"   spine1  "show bgp summary" "10.2.12.10"
 bgp_estab "spine1 <-> leaf2 underlay"   spine1  "show bgp summary" "10.2.12.21"
 bgp_estab "spine2 <-> border1 underlay" spine2  "show bgp summary" "10.2.12.5"
 bgp_estab "spine2 <-> leaf2 underlay"   spine2  "show bgp summary" "10.2.12.14"
-bgp_estab "spine2 <-> leaf1 underlay"   spine2  "show bgp summary" "10.2.12.18"
+bgp_estab "spine2 <-> leaf1 underlay"   spine2  "show bgp summary" "10.2.12.17"
 bgp_estab "leaf1 <-> spine1 underlay"   leaf1   "show bgp summary" "10.2.12.9"
 bgp_estab "leaf1 <-> spine2 underlay"   leaf1   "show bgp summary" "10.2.12.18"
 bgp_estab "leaf2 <-> spine2 underlay"   leaf2   "show bgp summary" "10.2.12.13"
@@ -249,7 +253,10 @@ check "border1 vrf TENANT-A sees branch route"        border1 "show bgp vrf TENA
 echo
 c_blue "== data plane: MPLS label programming (control + kernel) =="
 for n in pe1 pe2 pe3 pe4 p1 p2 p3 p4; do
-    check "$n has LDP label bindings" "$n" "show mpls ldp binding" "Prefix" 1
+    # "Destination" is just the table header (always printed, even with
+    # zero rows) — check for "imp-null", which only appears on an actual
+    # binding row, so an empty table can't false-positive this check.
+    check "$n has LDP label bindings" "$n" "show mpls ldp binding" "imp-null" 1
 done
 for n in pe1 pe2 pe3 pe4 p1 p2 p3 p4; do
     kernel_check "$n kernel MPLS FIB is populated" "$n" "ip -f mpls route show"
