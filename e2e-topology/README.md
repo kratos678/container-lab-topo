@@ -252,13 +252,23 @@ user's own environment, not validated end to end from this sandbox itself.
   convergence checks, which made a genuinely broken data-plane check look
   like a hang. Data-plane pings now use a separate, shorter retry budget
   (~12s) since convergence is already checked earlier in the script.
+- All four PEs' `vrf CUST-A` config had `label vpn export allocation-mode
+  per-vrf`, which is not valid FRR syntax (the real command is `label vpn
+  export auto`). Integrated config skips unrecognized lines instead of
+  erroring, so every PE silently had no export label configured at all —
+  confirmed on a live pe1 by `show bgp summary` showing the VPNv4 session
+  to rr1 Established but `PfxSnt 0`: nothing was ever reaching the VPNv4
+  table to reflect, which is also why border1 saw nothing downstream.
+  Fixed on all four PEs.
 
 **Still worth double-checking on your next run:**
 
-- If `border1 vrf TENANT-A sees branch route` still fails after the
-  `ebgp-requires-policy` fix, check `show bgp vrf CUST-A ipv4 unicast` on
-  `pe2`/`pe4` directly — if the branch route isn't there either, the issue
-  is upstream in the VPNv4/OSPF redistribution chain, not on border1.
+- Re-run `show bgp summary` on pe1 — `PfxSnt` toward rr1 should now be
+  non-zero, and `rr1 <-> peN VPNv4 session` / `border1 vrf TENANT-A sees
+  branch route` in `tests/run-tests.sh` should start passing. If `PfxSnt`
+  is still 0, check `show bgp vrf CUST-A ipv4 unicast` on pe1 first — if
+  that's empty too, the break is further upstream (the CE-facing session
+  to br-core1, or OSPF redistribution on br-core1), not the VPNv4 export.
 - FRR's `daemons` file format and VRF/EVPN CLI have shifted across major
   versions; if a daemon won't start or a command is rejected, check
   `docker exec -it <node> cat /var/log/frr/frr.log` and compare against
