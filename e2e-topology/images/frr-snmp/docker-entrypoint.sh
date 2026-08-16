@@ -13,6 +13,13 @@ chmod 777 /var/agentx
 mkdir -p /var/log/frr
 chown frr:frr /var/log/frr
 
+# rsyslogd first: FRR's "log syslog" (and the "log commands" config-change
+# audit trail) only reaches a local /dev/log socket — without a listener
+# there, those log lines go nowhere. rsyslogd forwards them on to the
+# monitoring host per /etc/rsyslog.conf.
+echo "[entrypoint] starting rsyslogd (local + remote log forwarding)..."
+rsyslogd
+
 # Enable MPLS forwarding on every interface present at boot. Harmless on
 # nodes that don't run LDP/MPLS; required on the ISP core (P/PE routers)
 # for label-switched forwarding to actually work. Needs the mpls_router

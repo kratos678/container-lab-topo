@@ -78,6 +78,88 @@ bgp_estab() {
     return 1
 }
 
+# kernel_check <label> <node> <shell-cmd>
+# Retries until <shell-cmd> (run inside the container) produces non-empty
+# stdout. Use for kernel-level state vtysh can't see, e.g. the MPLS FIB.
+kernel_check() {
+    local label="$1" n="$2" cmd="$3"
+    local i out
+    for ((i = 0; i < RETRY_MAX; i++)); do
+        out="$(docker exec "${PREFIX}${n}" sh -c "$cmd" 2>/dev/null)"
+        if [ -n "$out" ]; then
+            c_green "  PASS  $label"
+            PASS=$((PASS + 1))
+            return 0
+        fi
+        sleep "$RETRY_SLEEP"
+    done
+    c_red "  FAIL  $label (empty output from: $cmd)"
+    FAIL=$((FAIL + 1))
+    FAILED_CHECKS+=("$label")
+    return 1
+}
+
+# vpn_nexthop_check <label> <node> <vpn-prefix> <want-nexthop> <reject-nexthop>
+# Checks "show bgp ipv4 vpn <prefix>" on <node>: the path-detail line's
+# leading address (the BGP next-hop) must be <want-nexthop> (the
+# originating far-PE's loopback) and must NOT be <reject-nexthop> (the
+# route reflector's loopback) — confirming next-hop-unchanged reflection
+# rather than the RR inserting itself into the forwarding path.
+vpn_nexthop_check() {
+    local label="$1" n="$2" prefix="$3" want="$4" reject="$5"
+    local i out
+    for ((i = 0; i < RETRY_MAX; i++)); do
+        out="$(vty "$n" "show bgp ipv4 vpn ${prefix}")"
+        if grep -qE "^[[:space:]]+${want//./\\.}[[:space:]]*\(" <<<"$out" \
+           && ! grep -qE "^[[:space:]]+${reject//./\\.}[[:space:]]*\(" <<<"$out"; then
+            c_green "  PASS  $label"
+            PASS=$((PASS + 1))
+            return 0
+        fi
+        sleep "$RETRY_SLEEP"
+    done
+    c_red "  FAIL  $label (want next-hop $want, not $reject)"
+    echo "        -- $n# vtysh -c \"show bgp ipv4 vpn $prefix\" --"
+    sed 's/^/        /' <<<"$out"
+    FAIL=$((FAIL + 1))
+    FAILED_CHECKS+=("$label")
+    return 1
+}
+
+# process_absent_check <label> <node> <process-name>
+# One-shot: passes if <process-name> is NOT running in the container.
+# Used to prove a deliberate architectural property (e.g. the P routers
+# never run bgpd, the route reflector never runs ldpd) rather than
+# guessing at a CLI error message's exact wording.
+process_absent_check() {
+    local label="$1" n="$2" proc="$3"
+    if docker exec "${PREFIX}${n}" pgrep -x "$proc" >/dev/null 2>&1; then
+        c_red "  FAIL  $label ($proc is running, expected absent)"
+        FAIL=$((FAIL + 1))
+        FAILED_CHECKS+=("$label")
+        return 1
+    fi
+    c_green "  PASS  $label"
+    PASS=$((PASS + 1))
+    return 0
+}
+
+# config_grep_check <label> <node> <file> <pattern>
+# One-shot (no retry — this is static config, not something that converges):
+# checks <file> inside the running container contains <pattern>.
+config_grep_check() {
+    local label="$1" n="$2" file="$3" pattern="$4"
+    if docker exec "${PREFIX}${n}" grep -qF -- "$pattern" "$file" 2>/dev/null; then
+        c_green "  PASS  $label"
+        PASS=$((PASS + 1))
+        return 0
+    fi
+    c_red "  FAIL  $label ('$pattern' not found in $n:$file)"
+    FAIL=$((FAIL + 1))
+    FAILED_CHECKS+=("$label")
+    return 1
+}
+
 # ping_check <label> <exec-container> <target-ip> [vrf-name]
 ping_check() {
     local label="$1" n="$2" target="$3" vrf="${4:-}"
@@ -165,6 +247,32 @@ check "leaf1 vrf TENANT-A sees leaf2 subnet (Type-5)" leaf1 "show bgp vrf TENANT
 check "border1 vrf TENANT-A sees branch route"        border1 "show bgp vrf TENANT-A ipv4 unicast" "10.1.10.0" 1
 
 echo
+c_blue "== data plane: MPLS label programming (control + kernel) =="
+for n in pe1 pe2 pe3 pe4 p1 p2 p3 p4; do
+    check "$n has LDP label bindings" "$n" "show mpls ldp binding" "Prefix" 1
+done
+for n in pe1 pe2 pe3 pe4 p1 p2 p3 p4; do
+    kernel_check "$n kernel MPLS FIB is populated" "$n" "ip -f mpls route show"
+done
+# Architectural properties, not just "is it up": the P routers are pure
+# transit LSRs (no BGP at all) and the route reflector is control-plane
+# only (no LDP/MPLS forwarding state) — proving service and transport
+# stay cleanly separated.
+for n in p1 p2 p3 p4; do
+    process_absent_check "$n runs no bgpd (pure transit LSR)" "$n" bgpd
+done
+process_absent_check "rr1 runs no ldpd (control-plane-only RR)" rr1 ldpd
+
+echo
+c_blue "== data plane: VPNv4 next-hop is the far PE, not the route reflector =="
+# rr1 (10.0.0.2) only ever appears as the BGP peer that reflected the
+# route; the forwarding next-hop must remain the originating PE's
+# loopback (next-hop-unchanged is default iBGP behaviour) so that pe1/pe3
+# resolve it via LDP/OSPF directly, without rr1 in the data path at all.
+vpn_nexthop_check "pe2 VPNv4 next-hop for branch route (10.1.10.0/24) is pe1, not rr1" pe2 "10.1.10.0/24" "10.0.0.1" "10.0.0.2"
+vpn_nexthop_check "pe4 VPNv4 next-hop for branch route (10.1.10.0/24) is pe3, not rr1" pe4 "10.1.10.0/24" "10.0.0.4" "10.0.0.2"
+
+echo
 c_blue "== data plane: branch LAN =="
 ping_check "br-h1 -> VRRP gateway 10.1.10.1" br-h1 10.1.10.1
 
@@ -183,6 +291,20 @@ c_blue "== data plane: end to end, branch <-> DC across ISP L3VPN + EVPN =="
 ping_check "br-h1 -> dc-h1 (10.2.110.11)" br-h1 10.2.110.11
 ping_check "br-h1 -> dc-h2 (10.2.120.11)" br-h1 10.2.120.11
 ping_check "dc-h1 -> br-h1 (10.1.10.11)" dc-h1 10.1.10.11
+
+echo
+c_blue "== management: SNMP traps, syslog receiver, config-change audit =="
+MGMT_NODES="br-core1 br-dist1 br-dist2 br-acc1 pe1 pe2 pe3 pe4 p1 p2 p3 p4 rr1 border1 spine1 spine2 leaf1 leaf2"
+for n in $MGMT_NODES; do
+    config_grep_check "$n SNMP trap receiver is 10.167.0.9" "$n" /etc/snmp/snmpd.conf "trap2sink 10.167.0.9"
+    config_grep_check "$n syslog receiver is 10.167.0.9"    "$n" /etc/rsyslog.conf   "10.167.0.9"
+    kernel_check      "$n rsyslogd is running"              "$n" "pgrep rsyslogd"
+done
+# br-acc1 runs no FRR routing daemons (pure L2 switch), so "log commands"
+# doesn't apply there.
+for n in br-core1 br-dist1 br-dist2 pe1 pe2 pe3 pe4 p1 p2 p3 p4 rr1 border1 spine1 spine2 leaf1 leaf2; do
+    config_grep_check "$n config-change audit logging enabled" "$n" /etc/frr/frr.conf "log commands"
+done
 
 echo
 c_blue "== summary =="

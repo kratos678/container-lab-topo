@@ -11,6 +11,9 @@
 #                          setup that must run before FRR starts: VLAN
 #                          trunking on the access switch, or VXLAN/bridge/
 #                          VRF netdevices for the DC EVPN fabric.
+#   - /etc/rsyslog.conf    forwards local syslog (FRR's "log syslog", incl.
+#                          "log commands" config-change audit records) to
+#                          the monitoring host's syslog receiver.
 #
 # Build:
 #   docker build -t clab-frr-snmp:e2e -f images/frr-snmp/Dockerfile images/frr-snmp
@@ -28,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         iproute2 iputils-ping bridge-utils vlan \
         snmpd snmp \
         lldpd \
+        rsyslog \
         tini \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.frrouting.org/frr/keys.asc -o /etc/apt/keyrings/frrouting.asc \

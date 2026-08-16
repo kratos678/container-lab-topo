@@ -216,6 +216,34 @@ network. Do not reuse this configuration on anything reachable outside an
 isolated lab; see the earlier 2-node lab's README for the SNMPv3
 alternative pattern.
 
+## SNMP traps and syslog
+
+Every FRR/switch node (all 18, not the 3 test hosts) also sends:
+
+- **SNMP traps** (`trap2sink 10.167.0.9 public` in `snmpd.conf`,
+  `authtrapenable 1`, `linkUpDownNotifications yes`) — linkUp/linkDown,
+  coldStart, and authentication-failure traps go to `10.167.0.9`.
+- **Syslog** — every node runs `rsyslogd`, configured
+  (`configs/shared/rsyslog.conf`, bind-mounted identically everywhere) to
+  forward everything it receives on the local `/dev/log` socket to
+  `10.167.0.9:514/udp`, while also keeping a local copy at
+  `/var/log/syslog` for on-box troubleshooting.
+- **Config-change audit logging** — every router's `frr.conf` has `log
+  syslog informational` (so FRR's log output reaches rsyslog, not just its
+  own log file) plus `log commands`, which makes every daemon log each
+  configuration command it receives — including ones typed by hand via
+  `vtysh` — to that same log stream. Combined with the syslog forwarding
+  above, a manual `docker exec ... vtysh -c "conf t" -c "..."` on any node
+  shows up centrally at `10.167.0.9`, not just in the container's own log
+  file. `br-acc1` is the one exception — it runs no FRR routing daemons at
+  all (pure L2 switch), so there's nothing there to audit.
+
+`tests/run-tests.sh` verifies all three are actually configured and
+running on every node (see its "management" section) — this only checks
+that the *lab side* is correctly pointed at `10.167.0.9`; it does not
+stand up a receiver there. Point an actual syslog/trap collector at that
+address on your monitoring host to receive them.
+
 ## Known limitations / not yet verified
 
 This sandbox has no running Docker daemon and no `containerlab` binary, so
@@ -260,6 +288,29 @@ user's own environment, not validated end to end from this sandbox itself.
   to rr1 Established but `PfxSnt 0`: nothing was ever reaching the VPNv4
   table to reflect, which is also why border1 saw nothing downstream.
   Fixed on all four PEs.
+- All four PEs' `eth1` and border1's `eth1`/`eth2` (the VRF-bound CE-facing
+  interfaces) were declared as `interface eth1` followed by a nested `vrf
+  CUST-A` sub-statement, instead of the compound `interface eth1 vrf
+  CUST-A` form. FRR resolves `interface eth1` (no VRF suffix) as the
+  default-VRF's `eth1` — a different object from the kernel's actual
+  `eth1`, which `prestart.sh` already enslaved into the VRF before FRR
+  started — so the configured address was silently withdrawn and the
+  PE-CE eBGP session sat in `Active` with 0 messages sent/received
+  forever (a pure TCP-level failure, not a BGP one). Fixed by using the
+  single-line `interface eth1 vrf CUST-A` / `interface eth1 vrf TENANT-A`
+  form everywhere a data interface lives inside a VRF.
+- Added an MPLS/next-hop data-plane validation section to
+  `tests/run-tests.sh`: LDP label bindings and a populated kernel MPLS
+  FIB on every P/PE router, that the P routers run no `bgpd` and the
+  route reflector runs no `ldpd` (proving transport and service stay
+  architecturally separate), and that the VPNv4 next-hop for a
+  reflected route is the originating far-PE's loopback — never `rr1`'s.
+- Added SNMP trap (`trap2sink`), syslog forwarding (`rsyslogd` +
+  `configs/shared/rsyslog.conf`), and config-change audit logging (`log
+  syslog` + `log commands` in every `frr.conf`) — all pointed at
+  `10.167.0.9` — plus a "management" test section that verifies each is
+  actually configured and running on every node. See "SNMP traps and
+  syslog" above.
 
 **Still worth double-checking on your next run:**
 

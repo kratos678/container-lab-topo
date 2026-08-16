@@ -25,6 +25,7 @@ topology:
         - configs/branch/br-core1/frr.conf:/etc/frr/frr.conf
         - configs/branch/br-core1/vtysh.conf:/etc/frr/vtysh.conf
         - configs/branch/br-core1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
 
     br-dist1:
       mgmt-ipv4: 10.255.0.102
@@ -33,6 +34,7 @@ topology:
         - configs/branch/br-dist1/frr.conf:/etc/frr/frr.conf
         - configs/branch/br-dist1/vtysh.conf:/etc/frr/vtysh.conf
         - configs/branch/br-dist1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/branch/br-dist1/prestart.sh:/etc/frr-lab/prestart.sh
 
     br-dist2:
@@ -42,6 +44,7 @@ topology:
         - configs/branch/br-dist2/frr.conf:/etc/frr/frr.conf
         - configs/branch/br-dist2/vtysh.conf:/etc/frr/vtysh.conf
         - configs/branch/br-dist2/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/branch/br-dist2/prestart.sh:/etc/frr-lab/prestart.sh
 
     br-acc1:
@@ -52,6 +55,7 @@ topology:
       binds:
         - configs/branch/br-acc1/daemons:/etc/frr/daemons
         - configs/branch/br-acc1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/branch/br-acc1/prestart.sh:/etc/frr-lab/prestart.sh
 
     br-h1:
@@ -71,6 +75,7 @@ topology:
         - configs/isp/pe1/frr.conf:/etc/frr/frr.conf
         - configs/isp/pe1/vtysh.conf:/etc/frr/vtysh.conf
         - configs/isp/pe1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/isp/pe1/prestart.sh:/etc/frr-lab/prestart.sh
 
     pe2:
@@ -80,6 +85,7 @@ topology:
         - configs/isp/pe2/frr.conf:/etc/frr/frr.conf
         - configs/isp/pe2/vtysh.conf:/etc/frr/vtysh.conf
         - configs/isp/pe2/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/isp/pe2/prestart.sh:/etc/frr-lab/prestart.sh
 
     pe3:
@@ -89,6 +95,7 @@ topology:
         - configs/isp/pe3/frr.conf:/etc/frr/frr.conf
         - configs/isp/pe3/vtysh.conf:/etc/frr/vtysh.conf
         - configs/isp/pe3/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/isp/pe3/prestart.sh:/etc/frr-lab/prestart.sh
 
     pe4:
@@ -98,6 +105,7 @@ topology:
         - configs/isp/pe4/frr.conf:/etc/frr/frr.conf
         - configs/isp/pe4/vtysh.conf:/etc/frr/vtysh.conf
         - configs/isp/pe4/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/isp/pe4/prestart.sh:/etc/frr-lab/prestart.sh
 
     p1:
@@ -107,6 +115,7 @@ topology:
         - configs/isp/p1/frr.conf:/etc/frr/frr.conf
         - configs/isp/p1/vtysh.conf:/etc/frr/vtysh.conf
         - configs/isp/p1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
 
     p2:
       mgmt-ipv4: 10.255.0.111
@@ -115,6 +124,7 @@ topology:
         - configs/isp/p2/frr.conf:/etc/frr/frr.conf
         - configs/isp/p2/vtysh.conf:/etc/frr/vtysh.conf
         - configs/isp/p2/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
 
     p3:
       mgmt-ipv4: 10.255.0.112
@@ -123,6 +133,7 @@ topology:
         - configs/isp/p3/frr.conf:/etc/frr/frr.conf
         - configs/isp/p3/vtysh.conf:/etc/frr/vtysh.conf
         - configs/isp/p3/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
 
     p4:
       mgmt-ipv4: 10.255.0.113
@@ -131,6 +142,7 @@ topology:
         - configs/isp/p4/frr.conf:/etc/frr/frr.conf
         - configs/isp/p4/vtysh.conf:/etc/frr/vtysh.conf
         - configs/isp/p4/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
 
     rr1:
       mgmt-ipv4: 10.255.0.114
@@ -139,6 +151,7 @@ topology:
         - configs/isp/rr1/frr.conf:/etc/frr/frr.conf
         - configs/isp/rr1/vtysh.conf:/etc/frr/vtysh.conf
         - configs/isp/rr1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
 
     # ------------------------------------------------------------- DATA CENTRE
     border1:
@@ -148,6 +161,7 @@ topology:
         - configs/dc/border1/frr.conf:/etc/frr/frr.conf
         - configs/dc/border1/vtysh.conf:/etc/frr/vtysh.conf
         - configs/dc/border1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/dc/border1/prestart.sh:/etc/frr-lab/prestart.sh
 
     spine1:
@@ -157,6 +171,7 @@ topology:
         - configs/dc/spine1/frr.conf:/etc/frr/frr.conf
         - configs/dc/spine1/vtysh.conf:/etc/frr/vtysh.conf
         - configs/dc/spine1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
 
     spine2:
       mgmt-ipv4: 10.255.0.117
@@ -165,6 +180,7 @@ topology:
         - configs/dc/spine2/frr.conf:/etc/frr/frr.conf
         - configs/dc/spine2/vtysh.conf:/etc/frr/vtysh.conf
         - configs/dc/spine2/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
 
     leaf1:
       mgmt-ipv4: 10.255.0.118
@@ -173,6 +189,7 @@ topology:
         - configs/dc/leaf1/frr.conf:/etc/frr/frr.conf
         - configs/dc/leaf1/vtysh.conf:/etc/frr/vtysh.conf
         - configs/dc/leaf1/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/dc/leaf1/prestart.sh:/etc/frr-lab/prestart.sh
 
     leaf2:
@@ -182,6 +199,7 @@ topology:
         - configs/dc/leaf2/frr.conf:/etc/frr/frr.conf
         - configs/dc/leaf2/vtysh.conf:/etc/frr/vtysh.conf
         - configs/dc/leaf2/snmpd.conf:/etc/snmp/snmpd.conf
+        - configs/shared/rsyslog.conf:/etc/rsyslog.conf
         - configs/dc/leaf2/prestart.sh:/etc/frr-lab/prestart.sh
 
     dc-h1:
