@@ -4,6 +4,11 @@
 #   eth2 -> br-dist2  (trunk: VLAN 10 + 20)
 #   eth3 -> br-h1     (access: VLAN 10, untagged)
 set -e
+. /etc/frr-lab/lib.sh
+
+for i in eth1 eth2 eth3; do
+    wait_for_iface "$i"
+done
 
 ip link add name br0 type bridge vlan_filtering 1
 ip link set br0 up

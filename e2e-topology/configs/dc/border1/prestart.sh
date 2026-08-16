@@ -9,6 +9,10 @@
 #   - eth1/eth2 (the WAN circuits to pe2/pe4) enslaved into VRF TENANT-A,
 #     so the eBGP PE-CE sessions run inside the tenant's routing context.
 set -e
+. /etc/frr-lab/lib.sh
+
+wait_for_iface eth1
+wait_for_iface eth2
 
 ip link add TENANT-A type vrf table 5000
 ip link set TENANT-A up

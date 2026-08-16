@@ -3,6 +3,9 @@
 # participates in L3VNI 5000 (VRF TENANT-A) for symmetric-IRB routing to
 # leaf2's subnet and, via border1, to the branch over the ISP's L3VPN.
 set -e
+. /etc/frr-lab/lib.sh
+
+wait_for_iface eth3
 
 # VRF for the tenant's L3VNI (created first so the SVI and L3VNI VTEP can
 # join it below).

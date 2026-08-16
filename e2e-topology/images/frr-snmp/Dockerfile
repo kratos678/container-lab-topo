@@ -28,7 +28,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl gnupg lsb-release \
-        iproute2 iputils-ping bridge-utils vlan \
+        iproute2 iputils-ping bridge-utils vlan procps \
         snmpd snmp \
         lldpd \
         rsyslog \

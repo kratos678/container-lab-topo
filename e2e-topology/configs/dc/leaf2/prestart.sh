@@ -3,6 +3,9 @@
 # participates in L3VNI 5000 (VRF TENANT-A) for symmetric-IRB routing to
 # leaf1's subnet and, via border1, to the branch over the ISP's L3VPN.
 set -e
+. /etc/frr-lab/lib.sh
+
+wait_for_iface eth3
 
 ip link add TENANT-A type vrf table 5000
 ip link set TENANT-A up
