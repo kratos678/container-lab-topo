@@ -148,6 +148,15 @@ the spine's.
   sudo modprobe mpls_router mpls_iptunnel   # ISP core: LDP/MPLS forwarding
   sudo modprobe 8021q                       # branch: VLAN sub-interfaces
   ```
+  This is now a hard requirement, not just a warning: `net.mpls.platform_labels`
+  is set via containerlab's `sysctls:` block (applied at container
+  creation, alongside `net.ipv4.ip_forward`) rather than from inside the
+  entrypoint after the fact — that was silently failing to take effect on
+  some nodes, leaving `net.mpls.platform_labels` at its kernel default of
+  `0` and every LDP-bound label rejected with `Label >= configured maximum
+  in platform_labels`, even though LDP sessions themselves looked
+  perfectly healthy. If `mpls_router` isn't loaded before you deploy,
+  every node fails to start at all rather than starting without MPLS.
 
 ## Build the node image
 

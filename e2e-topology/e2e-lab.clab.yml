@@ -15,6 +15,17 @@ topology:
     sysctls:
       net.ipv4.ip_forward: 1
       net.ipv4.conf.all.rp_filter: 0
+      # Applied at container creation (the same mechanism that already
+      # works for the two ipv4 sysctls above) rather than via "sysctl -w"
+      # from inside the running container in the entrypoint: writing
+      # net.mpls.platform_labels post-start was silently failing to take
+      # effect (kernel default stays 0, so zebra rejects every label with
+      # "Label >= configured maximum in platform_labels" and the MPLS
+      # FIB never gets programmed, even though LDP itself looks fine).
+      # Requires mpls_router/mpls_iptunnel loaded on the clab host first
+      # (see README Prerequisites) or the container fails to start.
+      net.mpls.conf.default.input: 1
+      net.mpls.platform_labels: 1048575
 
   nodes:
     # ---------------------------------------------------------------- BRANCH

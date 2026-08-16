@@ -20,20 +20,29 @@ chown frr:frr /var/log/frr
 echo "[entrypoint] starting rsyslogd (local + remote log forwarding)..."
 rsyslogd
 
-# Enable MPLS forwarding on every interface present at boot. Harmless on
-# nodes that don't run LDP/MPLS; required on the ISP core (P/PE routers)
-# for label-switched forwarding to actually work. Needs the mpls_router
-# kernel module loaded on the clab host first (modprobe mpls_router
-# mpls_iptunnel) — these sysctls are namespaced per-container but the
-# kernel module itself is host-wide.
+# net.mpls.platform_labels and net.mpls.conf.default.input are set at
+# container creation via clab's "sysctls:" block (the same mechanism
+# already used for the ipv4 sysctls below) — that's the reliable path;
+# writing them here via "sysctl -w" after the container is already
+# running was silently failing to take effect on some nodes (kernel
+# stayed at the default net.mpls.platform_labels=0, so zebra rejected
+# every LDP-bound label with "Label >= configured maximum", and the
+# kernel MPLS FIB never got programmed even though LDP itself looked
+# fine). What genuinely can't be done ahead of time is enabling MPLS
+# input per-interface, since clab's static sysctls block can't enumerate
+# this node's interface names — so that part still happens here, once
+# per interface present at boot. Requires mpls_router/mpls_iptunnel
+# loaded on the clab host first (modprobe mpls_router mpls_iptunnel).
 if [ -d /proc/sys/net/mpls ]; then
-    sysctl -w net.mpls.platform_labels=100000 >/dev/null 2>&1 || true
-    sysctl -w net.mpls.conf.default.input=1 >/dev/null 2>&1 || true
     for ifc in /sys/class/net/*; do
         i=$(basename "$ifc")
         [ "$i" = "lo" ] && continue
-        sysctl -w "net.mpls.conf.${i}.input=1" >/dev/null 2>&1 || true
+        if ! sysctl -w "net.mpls.conf.${i}.input=1" >/tmp/mpls-sysctl.err 2>&1; then
+            echo "[entrypoint] WARNING: failed to set net.mpls.conf.${i}.input=1:"
+            cat /tmp/mpls-sysctl.err
+        fi
     done
+    echo "[entrypoint] net.mpls.platform_labels = $(sysctl -n net.mpls.platform_labels 2>/dev/null)"
 else
     echo "[entrypoint] WARNING: /proc/sys/net/mpls not present — load the" \
          "mpls_router kernel module on the clab host if this node needs LDP/MPLS."
