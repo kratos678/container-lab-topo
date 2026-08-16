@@ -1,0 +1,36 @@
+name: frr-ospf-bgp-snmp
+
+topology:
+  defaults:
+    kind: linux
+    image: clab-frr-snmp:latest
+    cap-add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_ADMIN
+    sysctls:
+      net.ipv4.ip_forward: 1
+      net.ipv4.conf.all.rp_filter: 0
+
+  nodes:
+    r1:
+      mgmt-ipv4: 172.100.100.11
+      binds:
+        - configs/r1/daemons:/etc/frr/daemons
+        - configs/r1/frr.conf:/etc/frr/frr.conf
+        - configs/r1/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/r1/snmpd.conf:/etc/snmp/snmpd.conf
+    r2:
+      mgmt-ipv4: 172.100.100.12
+      binds:
+        - configs/r2/daemons:/etc/frr/daemons
+        - configs/r2/frr.conf:/etc/frr/frr.conf
+        - configs/r2/vtysh.conf:/etc/frr/vtysh.conf
+        - configs/r2/snmpd.conf:/etc/snmp/snmpd.conf
+
+  links:
+    - endpoints: ["r1:eth1", "r2:eth1"]
+
+mgmt:
+  network: frr-lab-mgmt
+  ipv4-subnet: 172.100.100.0/24

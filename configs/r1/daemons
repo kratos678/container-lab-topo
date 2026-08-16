@@ -1,0 +1,16 @@
+# Which FRR daemons to start, and the extra CLI options each gets.
+# "-M snmp" loads the AgentX SNMP module built by the frr-snmp package,
+# so zebra/bgpd/ospfd register their MIBs with the local snmpd master agent.
+
+zebra=yes
+bgpd=yes
+ospfd=yes
+staticd=yes
+
+watchfrr_enable=yes
+vtysh_enable=yes
+
+zebra_options="   -A 127.0.0.1 -M snmp"
+bgpd_options="    -A 127.0.0.1 -M snmp"
+ospfd_options="   -A 127.0.0.1 -M snmp"
+staticd_options=" -A 127.0.0.1"
