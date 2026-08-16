@@ -1,0 +1,19 @@
+device,ipaddress,city,lat,long,namespace,pingprofile,profile,region,site,type,vendor,platform
+IL-BR-CORE-R01,10.255.0.101,chicago,41.8563,-87.6517,FRR,FRR,linux_router_v2,US-Central,IL,core,frr,frr
+IL-BR-AGG-R02,10.255.0.102,chicago,41.8563,-87.6517,FRR,FRR,linux_router_v2,US-Central,IL,aggregation,frr,frr
+IL-BR-AGG-R03,10.255.0.103,chicago,41.8563,-87.6517,FRR,FRR,linux_router_v2,US-Central,IL,aggregation,frr,frr
+IL-BR-ACC-SW04,10.255.0.104,chicago,41.8563,-87.6517,FRR,FRR,linux_router_v2,US-Central,IL,access,frr,frr
+IL-ISP-PE-R06,10.255.0.106,chicago,41.8563,-87.6517,FRR,FRR,linux_router_v2,US-Central,IL,pe,frr,frr
+CA-ISP-PE-R07,10.255.0.107,los angeles,34.0522,-118.2437,FRR,FRR,linux_router_v2,US-West,CA,pe,frr,frr
+IL-ISP-PE-R08,10.255.0.108,chicago,41.8563,-87.6517,FRR,FRR,linux_router_v2,US-Central,IL,pe,frr,frr
+CA-ISP-PE-R09,10.255.0.109,los angeles,34.0522,-118.2437,FRR,FRR,linux_router_v2,US-West,CA,pe,frr,frr
+CO-ISP-P-R10,10.255.0.110,denver,39.7392,-104.9903,FRR,FRR,linux_router_v2,US-Central,CO,p,frr,frr
+CO-ISP-P-R11,10.255.0.111,denver,39.7392,-104.9903,FRR,FRR,linux_router_v2,US-Central,CO,p,frr,frr
+CO-ISP-P-R12,10.255.0.112,denver,39.7392,-104.9903,FRR,FRR,linux_router_v2,US-Central,CO,p,frr,frr
+CO-ISP-P-R13,10.255.0.113,denver,39.7392,-104.9903,FRR,FRR,linux_router_v2,US-Central,CO,p,frr,frr
+CO-ISP-RR-R14,10.255.0.114,denver,39.7392,-104.9903,FRR,FRR,linux_router_v2,US-Central,CO,rr,frr,frr
+CA-DC-BORDER-R15,10.255.0.115,los angeles,34.0522,-118.2437,FRR,FRR,linux_router_v2,US-West,CA,border,frr,frr
+CA-DC-SPINE-R16,10.255.0.116,los angeles,34.0522,-118.2437,FRR,FRR,linux_router_v2,US-West,CA,spine,frr,frr
+CA-DC-SPINE-R17,10.255.0.117,los angeles,34.0522,-118.2437,FRR,FRR,linux_router_v2,US-West,CA,spine,frr,frr
+CA-DC-LEAF-R18,10.255.0.118,los angeles,34.0522,-118.2437,FRR,FRR,linux_router_v2,US-West,CA,leaf,frr,frr
+CA-DC-LEAF-R19,10.255.0.119,los angeles,34.0522,-118.2437,FRR,FRR,linux_router_v2,US-West,CA,leaf,frr,frr
