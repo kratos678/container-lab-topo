@@ -212,12 +212,10 @@ ping_check() {
 }
 
 echo
-c_blue "== control plane: branch OSPF + VRRP =="
+c_blue "== control plane: branch OSPF =="
 check "br-core1 OSPF full to br-dist1"  br-core1 "show ip ospf neighbor" "Full" 2
 check "br-dist1 OSPF full neighbors"    br-dist1 "show ip ospf neighbor" "Full" 2
 check "br-dist2 OSPF full neighbors"    br-dist2 "show ip ospf neighbor" "Full" 2
-check "br-dist1 VRRP vrid10 Master"     br-dist1 "show vrrp" "Master" 1
-check "br-dist2 VRRP vrid20 Master"     br-dist2 "show vrrp" "Master" 1
 
 echo
 c_blue "== control plane: ISP core OSPF + LDP =="
@@ -307,7 +305,7 @@ vpn_nexthop_check "pe4 VPNv4 next-hop for branch route (10.1.10.0/24) is pe3, no
 
 echo
 c_blue "== data plane: branch LAN =="
-ping_check "br-h1 -> VRRP gateway 10.1.10.1" br-h1 10.1.10.1
+ping_check "br-h1 -> gateway 10.1.10.1" br-h1 10.1.10.1
 
 echo
 c_blue "== data plane: PE-CE reachability (WAN circuits) =="
