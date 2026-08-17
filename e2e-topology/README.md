@@ -378,6 +378,29 @@ user's own environment, not validated end to end from this sandbox itself.
   landed in `prestart.sh`/the Dockerfile yet — confirming the capability
   fix live is still in progress.
 
+**Known runtime workaround — `ldpd` stuck after boot:**
+
+On at least one run, `ldpd` on a P/PE node came up (process alive, `zebra`
+session established) but never formed LDP Hello adjacencies on its
+interfaces — the same class of startup-ordering race already covered by
+the EVPN Type-5 `poststart.sh` toggle, just hitting a different daemon.
+No config change fixes this; it needs a fresh restart so `ldpd` re-syncs
+against interface/OSPF state that's already settled:
+
+```bash
+docker exec -it clab-e2e-topology-pe4 pkill ldpd
+```
+
+`watchfrr_enable=yes` in every node's `daemons` file means `watchfrr`
+respawns it automatically with its normal options — no need to invoke
+`ldpd` manually with custom flags, which would run outside `watchfrr`'s
+supervision and risks colliding with its own respawn attempt over the
+same pid/vty-socket files. If this turns out to be reproducible on every
+deploy rather than an occasional race, worth adding an `ldpd`-neighbor
+check to a `poststart.sh` that restarts it automatically, mirroring the
+EVPN toggle pattern — not done here since it's only been seen once so
+far.
+
 **Still worth double-checking on your next run:**
 
 - Re-run `show bgp summary` on pe1 — `PfxSnt` toward rr1 should now be
