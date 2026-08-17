@@ -230,6 +230,20 @@ network. Do not reuse this configuration on anything reachable outside an
 isolated lab; see the earlier 2-node lab's README for the SNMPv3
 alternative pattern.
 
+## SSH access
+
+Every FRR/switch node also runs `sshd` for manual troubleshooting on the
+mgmt network, alongside `docker exec`:
+
+```bash
+ssh root@10.255.0.106   # pe1, password: clab123
+```
+
+**Security note**: `root`/`clab123` is a fixed lab-only credential baked
+into the image for convenience — appropriate only on this lab's isolated
+management network. Do not reuse this image's sshd config anywhere
+reachable outside an isolated lab.
+
 ## SNMP traps and syslog
 
 Every FRR/switch node (all 18, not the 3 test hosts) also sends:
@@ -325,6 +339,34 @@ user's own environment, not validated end to end from this sandbox itself.
   `10.167.0.9` — plus a "management" test section that verifies each is
   actually configured and running on every node. See "SNMP traps and
   syslog" above.
+- `border1`, `leaf1`, and `leaf2`'s `prestart.sh` enslaved the L3VNI VTEP
+  (`vxlan5000`) directly to `VRF TENANT-A`. Confirmed live that this leaves
+  the L3VNI permanently non-functional: zebra derives the L3VNI's
+  Router-MAC (required to originate any EVPN Type-5 route) from a bridge
+  device's own MAC, and finds none if the VXLAN device is enslaved
+  straight to the VRF — `show vrf vni` sits at `L3-SVI: None`, `State:
+  Down`, `Rmac: None` forever, and `show bgp l2vpn evpn vni` never counts
+  it as an L3 VNI regardless of any BGP-side `advertise-all-vni` /
+  `advertise ipv4 unicast` toggling. Fixed by inserting a dedicated
+  `br-l3vni` bridge between the VTEP and the VRF on all three nodes.
+- Added `openssh-server` (see "SSH access" above) for manual
+  troubleshooting alongside `docker exec`.
+
+**Still open — data plane / VRRP:**
+
+- The branch LAN's VRRP gateway (`br-h1 -> 10.1.10.1`) and everything
+  downstream of it (branch&harr;DC end-to-end pings) don't work yet.
+  Root-caused live to FRR's `vrrpd`: it requires a pre-created `macvlan`
+  device carrying the VRRP virtual MAC (`00:00:5e:00:01:<vrid-hex>`, `mode
+  bridge`) on each VRRP-enabled interface — vrrpd never creates this
+  itself, only discovers it by MAC match against zebra's interface list.
+  Beyond that, `vrrpd` also failed to open its VRRP Rx socket / gratuitous
+  ARP subsystem after dropping privileges to the unprivileged `frr` user
+  (`CapEff` came back all zero even with the macvlan in place), which
+  looks like a missing capability grant on the `vrrpd` binary for this
+  image/FRR version. Neither the macvlan step nor the capability fix has
+  landed in `prestart.sh`/the Dockerfile yet — confirming the capability
+  fix live is still in progress.
 
 **Still worth double-checking on your next run:**
 

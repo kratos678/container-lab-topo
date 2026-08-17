@@ -20,6 +20,9 @@ chown frr:frr /var/log/frr
 echo "[entrypoint] starting rsyslogd (local + remote log forwarding)..."
 rsyslogd
 
+echo "[entrypoint] starting sshd (mgmt-network troubleshooting access)..."
+/usr/sbin/sshd
+
 # net.mpls.platform_labels is set at container creation via clab's
 # "sysctls:" block (the same mechanism already used for the ipv4
 # sysctls below) — that's the reliable path; writing it here via

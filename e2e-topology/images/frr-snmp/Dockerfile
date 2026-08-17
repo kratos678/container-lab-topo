@@ -32,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         snmpd snmp \
         lldpd \
         rsyslog \
+        openssh-server \
         tini \
     && mkdir -p /etc/apt/keyrings \
     && curl -fsSL https://deb.frrouting.org/frr/keys.asc -o /etc/apt/keyrings/frrouting.asc \
@@ -47,6 +48,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir -p /var/agentx && chmod 777 /var/agentx \
     && mkdir -p /var/log/frr && chown frr:frr /var/log/frr \
     && mkdir -p /etc/frr-lab
+
+# SSH access for manual troubleshooting on the mgmt network. Lab-only
+# credential (root/clab123) - see the README security note; do not reuse
+# this image's sshd config anywhere reachable outside an isolated lab.
+RUN mkdir -p /run/sshd \
+    && ssh-keygen -A \
+    && echo 'root:clab123' | chpasswd \
+    && sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
