@@ -361,22 +361,27 @@ user's own environment, not validated end to end from this sandbox itself.
   `br-l3vni` bridge between the VTEP and the VRF on all three nodes.
 - Added `openssh-server` (see "SSH access" above) for manual
   troubleshooting alongside `docker exec`.
+- `br-dist1`/`br-dist2`'s `prestart.sh` never created a `macvlan` device
+  carrying the VRRP virtual MAC (`00:00:5e:00:01:<vrid-hex>`, `mode
+  bridge`) on `eth1.10`/`eth1.20`. FRR's `vrrpd` never creates this
+  itself — it only discovers one by scanning zebra's interface list for a
+  MAC match, and refuses to start the virtual router at all without it
+  (`no interface found w/ MAC ...`), leaving `Status (v4): Initialize`
+  forever with 0 advertisements sent. Fixed by creating
+  `vrrp-vrid10`/`vrrp-vrid20` in `prestart.sh` on both nodes.
 
-**Still open — data plane / VRRP:**
-
-- The branch LAN's VRRP gateway (`br-h1 -> 10.1.10.1`) and everything
-  downstream of it (branch&harr;DC end-to-end pings) don't work yet.
-  Root-caused live to FRR's `vrrpd`: it requires a pre-created `macvlan`
-  device carrying the VRRP virtual MAC (`00:00:5e:00:01:<vrid-hex>`, `mode
-  bridge`) on each VRRP-enabled interface — vrrpd never creates this
-  itself, only discovers it by MAC match against zebra's interface list.
-  Beyond that, `vrrpd` also failed to open its VRRP Rx socket / gratuitous
-  ARP subsystem after dropping privileges to the unprivileged `frr` user
-  (`CapEff` came back all zero even with the macvlan in place), which
-  looks like a missing capability grant on the `vrrpd` binary for this
-  image/FRR version. Neither the macvlan step nor the capability fix has
-  landed in `prestart.sh`/the Dockerfile yet — confirming the capability
-  fix live is still in progress.
+  Along the way, on one specific host (not reproduced on a second host),
+  `vrrpd` additionally failed with `Can't create VRRP Rx socket` /
+  `Error initializing gratuitous ARP subsystem` even with the macvlan
+  present, despite `CapPrm` correctly holding `CAP_NET_RAW`. Chased as a
+  capability/`setcap` issue for a while before confirming — by reproducing
+  on a second host with the exact same `CapEff: 0` snapshot working fine
+  — that it's a host-level restriction (most likely an AppArmor or
+  seccomp policy on that specific machine), not something this image or
+  `prestart.sh` controls. No Dockerfile/capability change was needed or
+  made; if raw-socket creation fails for `vrrpd` on a given deployment
+  host, check that host's AppArmor/seccomp policy for the container
+  runtime rather than looking here first.
 
 **Known runtime workaround — `ldpd` stuck after boot:**
 
