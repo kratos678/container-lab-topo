@@ -10,16 +10,3 @@ ip link add link eth1 name eth1.10 type vlan id 10
 ip link add link eth1 name eth1.20 type vlan id 20
 ip link set eth1.10 up
 ip link set eth1.20 up
-
-# FRR's vrrpd never creates the macvlan device that carries the VRRP
-# virtual MAC - it only discovers one by scanning zebra's interface list
-# for a MAC match, and refuses to start the virtual router at all if none
-# exists ("no interface found w/ MAC ..."). Confirmed live: without this,
-# vrrpd sits in Status: Initialize forever with 0 advertisements sent.
-ip link add vrrp-vrid10 link eth1.10 type macvlan mode bridge
-ip link set dev vrrp-vrid10 address 00:00:5e:00:01:0a
-ip link set dev vrrp-vrid10 up
-
-ip link add vrrp-vrid20 link eth1.20 type macvlan mode bridge
-ip link set dev vrrp-vrid20 address 00:00:5e:00:01:14
-ip link set dev vrrp-vrid20 up
