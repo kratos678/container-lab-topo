@@ -170,6 +170,16 @@ docker build -t clab-frr-snmp:e2e -f images/frr-snmp/Dockerfile images/frr-snmp
 sudo containerlab deploy -t e2e-lab.clab.yml
 ```
 
+`topology.defaults.startup-delay: 3` staggers container starts across all
+21 nodes. On a loaded host, containerlab attaches veth links as a step
+separate from starting each container, and `prestart.sh` can win that
+race and run before its own interfaces exist — this showed up repeatedly
+as `Cannot find device ethN` crash-restart loops, and (worse) some nodes
+silently never running `prestart.sh` at all on a given boot, with no
+error at all since FRR itself started up fine independently. If you still
+see a node's VLAN/VRF/VXLAN netdevices missing after a fresh deploy on a
+particular host, raise this value.
+
 Destroy with:
 
 ```bash

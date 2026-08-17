@@ -8,6 +8,17 @@ topology:
   defaults:
     kind: linux
     image: frr:e2e
+    # Staggers container starts across all 21 nodes. On a loaded host,
+    # containerlab's link-wiring (attaching veths) is a separate step from
+    # starting each container, and prestart.sh can win that race and run
+    # before its own interfaces exist yet - this showed up repeatedly as
+    # "Cannot find device ethN", crash-restart loops, and (worse) whole
+    # nodes silently never running prestart.sh at all on a given boot.
+    # wait_for_iface() in prestart.sh already guards against the interface
+    # genuinely not existing yet; this just reduces how often that race is
+    # hit in the first place. Increase if deploys on this host still show
+    # missed prestart.sh runs.
+    startup-delay: 3
     cap-add:
       - NET_ADMIN
       - NET_RAW
