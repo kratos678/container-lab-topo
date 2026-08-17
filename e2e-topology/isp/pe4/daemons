@@ -1,0 +1,14 @@
+zebra=yes
+bgpd=yes
+ospfd=yes
+staticd=yes
+ldpd=yes
+
+watchfrr_enable=yes
+vtysh_enable=yes
+
+zebra_options="   -A 127.0.0.1 -M snmp"
+bgpd_options="    -A 127.0.0.1 -M snmp"
+ospfd_options="   -A 127.0.0.1 -M snmp"
+staticd_options=" -A 127.0.0.1"
+ldpd_options="    -A 127.0.0.1"

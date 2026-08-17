@@ -1,0 +1,159 @@
+{
+  "freeTextAnnotations": [],
+  "freeShapeAnnotations": [],
+  "trafficRateAnnotations": [],
+  "groupStyleAnnotations": [],
+  "networkNodeAnnotations": [],
+  "nodeAnnotations": [
+    {
+      "id": "br-core1",
+      "position": {
+        "x": 180,
+        "y": 120
+      }
+    },
+    {
+      "id": "br-dist1",
+      "position": {
+        "x": 100,
+        "y": -20
+      }
+    },
+    {
+      "id": "br-dist2",
+      "position": {
+        "x": 240,
+        "y": -20
+      }
+    },
+    {
+      "id": "br-acc1",
+      "position": {
+        "x": 180,
+        "y": -160
+      }
+    },
+    {
+      "id": "br-h1",
+      "position": {
+        "x": 340,
+        "y": -220
+      }
+    },
+    {
+      "id": "pe1",
+      "position": {
+        "x": 280,
+        "y": 260
+      }
+    },
+    {
+      "id": "pe2",
+      "position": {
+        "x": 440,
+        "y": 360
+      }
+    },
+    {
+      "id": "pe3",
+      "position": {
+        "x": 180,
+        "y": 300
+      }
+    },
+    {
+      "id": "pe4",
+      "position": {
+        "x": 440,
+        "y": 460
+      }
+    },
+    {
+      "id": "p1",
+      "position": {
+        "x": 360,
+        "y": 400
+      }
+    },
+    {
+      "id": "p2",
+      "position": {
+        "x": 260,
+        "y": 380
+      }
+    },
+    {
+      "id": "p3",
+      "position": {
+        "x": 180,
+        "y": 440
+      }
+    },
+    {
+      "id": "p4",
+      "position": {
+        "x": 280,
+        "y": 520
+      }
+    },
+    {
+      "id": "rr1",
+      "position": {
+        "x": 380,
+        "y": 540
+      }
+    },
+    {
+      "id": "border1",
+      "position": {
+        "x": 600,
+        "y": 440
+      }
+    },
+    {
+      "id": "spine1",
+      "position": {
+        "x": 720,
+        "y": 580
+      }
+    },
+    {
+      "id": "spine2",
+      "position": {
+        "x": 780,
+        "y": 500
+      }
+    },
+    {
+      "id": "leaf1",
+      "position": {
+        "x": 900,
+        "y": 540
+      }
+    },
+    {
+      "id": "leaf2",
+      "position": {
+        "x": 840,
+        "y": 660
+      }
+    },
+    {
+      "id": "dc-h1",
+      "position": {
+        "x": 1000,
+        "y": 420
+      }
+    },
+    {
+      "id": "dc-h2",
+      "position": {
+        "x": 800,
+        "y": 820
+      }
+    }
+  ],
+  "edgeAnnotations": [],
+  "aliasEndpointAnnotations": [],
+  "viewerSettings": {}
+}
