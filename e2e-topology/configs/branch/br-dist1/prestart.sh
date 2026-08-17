@@ -12,6 +12,7 @@ ip link set eth1.10 up
 ip link set eth1.20 up
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 # FRR's vrrpd never creates the macvlan device that carries the VRRP
 # virtual MAC - it only discovers one by scanning zebra's interface list
 # for a MAC match, and refuses to start the virtual router at all if none
@@ -40,3 +41,5 @@ ip link set vrrp-vrid20 up
 setcap cap_net_raw,cap_net_admin+ep /usr/lib/frr/vrrpd
 
 >>>>>>> ceda713 (vrrp fix)
+=======
+>>>>>>> c35d144 (Remove FRR VRRP configuration)
