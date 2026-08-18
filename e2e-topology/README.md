@@ -235,6 +235,23 @@ Two standalone helper scripts in `tests/` for load/traffic testing beyond
   ./tests/wireblast_mesh.py --deploy --bidirectional --pps 50000 --duration 60s
   ./tests/wireblast_mesh.py --stop   # tear down running flows
   ```
+- **`wireblast_traffic_mix.py`** — same `wireblast` dependency, but shapes
+  three named traffic types from `br-h1` to `dc-h1`/`dc-h2` at once, split
+  by percentage of an aggregate PPS budget: `voice` (small fixed-size UDP,
+  approximating a G.711 RTP stream), `web` (stateless TCP SYNs to port
+  443 — wireblast has no real HTTP/TLS payload support, so this is
+  SYN-rate traffic shaped like HTTPS connection attempts, not real
+  requests), and `udp` (plain UDP to a port you choose). All three run
+  concurrently for the same duration, not as sequential slices of it —
+  wireblast explicitly supports reusing an already-attached XDP program
+  on one interface, so several processes sharing `eth1` at once is by
+  design.
+  ```bash
+  ./tests/wireblast_traffic_mix.py --deploy \
+      --mix voice=20,web=50,udp=30 --udp-port 9500 \
+      --total-pps 200000 --duration 60s
+  ./tests/wireblast_traffic_mix.py --stop   # tear down running flows
+  ```
 
 ## SNMP
 
