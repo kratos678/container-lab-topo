@@ -46,8 +46,8 @@ by `e2e-lab.clab.yml`.
   br-core1            border1 (AS 65513, L3VNI 5000 / VRF TENANT-A)
    /      \             /        \
  br-dist1 br-dist2   spine1      spine2
-  (VRRP master/backup  (AS65501)  (AS65502)
-   VLAN10 <-> VLAN20)     \        /   (full cross-mesh to both leafs)
+  (br-dist1: VLAN10 gw (AS65501)  (AS65502)
+   br-dist2: VLAN20 gw)   \        /   (full cross-mesh to both leafs)
       \    /                leaf1  leaf2
      br-acc1 (L2 trunk)   (AS65511)(AS65512)
         |                  VNI10110 VNI10120
@@ -76,7 +76,7 @@ by `e2e-lab.clab.yml`.
 
 | Domain      | Protocols                                              | Key identifiers |
 |-------------|---------------------------------------------------------|-----------------|
-| Branch      | OSPF area 0, VRRPv3, eBGP (dual-homed PE-CE)             | AS 65100 &middot; VLAN 10 `10.1.10.0/24` &middot; VLAN 20 `10.1.20.0/24` |
+| Branch      | OSPF area 0, eBGP (dual-homed PE-CE)                     | AS 65100 &middot; VLAN 10 `10.1.10.0/24` &middot; VLAN 20 `10.1.20.0/24` |
 | ISP         | Core: OSPF + LDP/MPLS (P/PE routers). Service: iBGP VPNv4 reflected by `rr1` | AS 65000 &middot; VRF `CUST-A` &middot; RT `65000:100`, per-PE RD `<loopback>:100` |
 | Data centre | eBGP underlay (per-device AS) + eBGP EVPN-VXLAN overlay, symmetric IRB | VRF `TENANT-A` &middot; L3VNI `5000` (RT `65000:5000`) &middot; L2VNI `10110`/`10120` |
 | WAN         | eBGP PE-CE, both sides dual-homed                        | `100.64.1.0/30` circuits (branch) &middot; `100.64.2.0/30` circuits (DC) |
@@ -89,8 +89,8 @@ by `e2e-lab.clab.yml`.
 | br-dist1 &harr; br-dist2      | 10.1.1.0/30  | direct peer link, OSPF |
 | br-dist1 &harr; br-core1      | 10.1.2.0/30  | OSPF |
 | br-dist2 &harr; br-core1      | 10.1.3.0/30  | OSPF |
-| VLAN 10 (br-dist1/2 &harr; br-h1) | 10.1.10.0/24 | VRRP VIP `.1`, br-dist1 master (110) / br-dist2 backup (90) |
-| VLAN 20 (br-dist1/2)          | 10.1.20.0/24 | VRRP VIP `.1`, br-dist2 master (110) / br-dist1 backup (90) |
+| VLAN 10 (br-dist1/2 &harr; br-h1) | 10.1.10.0/24 | gateway `.1` owned by br-dist1 (no failover; VRRP was tried and dropped, see below) |
+| VLAN 20 (br-dist1/2)          | 10.1.20.0/24 | gateway `.1` owned by br-dist2 (no failover) |
 | br-core1 &harr; pe1 (circuit A) | 100.64.1.0/30 | eBGP AS65100 &harr; AS65000 |
 | br-core1 &harr; pe3 (circuit B) | 100.64.1.4/30 | eBGP AS65100 &harr; AS65000 |
 
@@ -192,7 +192,7 @@ sudo containerlab destroy -t e2e-lab.clab.yml
 ./tests/run-tests.sh e2e-topology
 ```
 
-This polls (up to ~50s per check) for OSPF/LDP/VRRP convergence on the
+This polls (up to ~50s per check) for OSPF/LDP convergence on the
 branch and ISP core, BGP VRF/VPNv4 sessions on the PEs and route
 reflector, the DC's underlay eBGP + EVPN sessions and a learned EVPN host
 route, then runs a ping matrix: branch LAN gateway, PE-CE circuits,
@@ -214,7 +214,7 @@ docker exec -it clab-e2e-topology-rr1 vtysh -c "show bgp ipv4 vpn summary"
 docker exec -it clab-e2e-topology-leaf1 vtysh -c "show bgp l2vpn evpn summary"
 docker exec -it clab-e2e-topology-leaf1 vtysh -c "show bgp l2vpn evpn route"
 docker exec -it clab-e2e-topology-border1 vtysh -c "show bgp vrf TENANT-A ipv4 unicast"
-docker exec -it clab-e2e-topology-br-dist1 vtysh -c "show vrrp"
+docker exec -it clab-e2e-topology-br-dist1 vtysh -c "show ip ospf neighbor"
 ```
 
 ## SNMP
@@ -303,7 +303,7 @@ user's own environment, not validated end to end from this sandbox itself.
   `ip addr add` / `ip route add`, never `ip link set eth1 up`. If
   containerlab doesn't bring the veth up for you on a plain `linux`-kind
   node, the host never gets a working interface at all — symptomatic of a
-  host that can't even ping its own directly-connected VRRP gateway.
+  host that can't even ping its own directly-connected gateway.
   Fixed by bringing the interface up explicitly first.
 - The test script itself had a real bug: several checks tested for a
   neighbor's IP address appearing in `show bgp ... summary` output, which
@@ -361,27 +361,32 @@ user's own environment, not validated end to end from this sandbox itself.
   `br-l3vni` bridge between the VTEP and the VRF on all three nodes.
 - Added `openssh-server` (see "SSH access" above) for manual
   troubleshooting alongside `docker exec`.
-- `br-dist1`/`br-dist2`'s `prestart.sh` never created a `macvlan` device
-  carrying the VRRP virtual MAC (`00:00:5e:00:01:<vrid-hex>`, `mode
-  bridge`) on `eth1.10`/`eth1.20`. FRR's `vrrpd` never creates this
-  itself — it only discovers one by scanning zebra's interface list for a
-  MAC match, and refuses to start the virtual router at all without it
-  (`no interface found w/ MAC ...`), leaving `Status (v4): Initialize`
-  forever with 0 advertisements sent. Fixed by creating
-  `vrrp-vrid10`/`vrrp-vrid20` in `prestart.sh` on both nodes.
+- **VRRP on the branch LAN was tried, made to work, and then dropped in
+  favor of a simpler static split.** For the record, since it took real
+  effort to get working: FRR's `vrrpd` never creates the `macvlan` device
+  that carries its virtual MAC — it only discovers one by scanning
+  zebra's interface list for a MAC match, and refuses to start the
+  virtual router at all without it (`no interface found w/ MAC ...`),
+  leaving `Status (v4): Initialize` forever with 0 advertisements sent.
+  Creating `vrrp-vrid10`/`vrrp-vrid20` in `prestart.sh` fixed that part
+  and was confirmed working (clean Master/Backup election, advertisements
+  flowing) on two separate hosts. Separately, on one of those hosts (not
+  the other), `vrrpd` additionally failed with `Can't create VRRP Rx
+  socket` / `Error initializing gratuitous ARP subsystem` even with the
+  macvlan present and `CapPrm` correctly holding `CAP_NET_RAW` — that
+  turned out to be a host-level restriction (most likely AppArmor/seccomp
+  on that specific machine, not reproduced on the second host with the
+  identical `CapEff: 0` snapshot), not anything this image controls.
 
-  Along the way, on one specific host (not reproduced on a second host),
-  `vrrpd` additionally failed with `Can't create VRRP Rx socket` /
-  `Error initializing gratuitous ARP subsystem` even with the macvlan
-  present, despite `CapPrm` correctly holding `CAP_NET_RAW`. Chased as a
-  capability/`setcap` issue for a while before confirming — by reproducing
-  on a second host with the exact same `CapEff: 0` snapshot working fine
-  — that it's a host-level restriction (most likely an AppArmor or
-  seccomp policy on that specific machine), not something this image or
-  `prestart.sh` controls. No Dockerfile/capability change was needed or
-  made; if raw-socket creation fails for `vrrpd` on a given deployment
-  host, check that host's AppArmor/seccomp policy for the container
-  runtime rather than looking here first.
+  Despite VRRP itself working, the design was simplified afterward:
+  `br-dist1` now owns `10.1.10.1/24` directly on `eth1.10` (sole gateway
+  for VLAN 10), `br-dist2` owns `10.1.20.1/24` directly on `eth1.20`
+  (sole gateway for VLAN 20), `vrrpd=no` on both, and no `vrrp` config in
+  either `frr.conf`. There is no first-hop failover between br-dist1/2
+  for either VLAN anymore — losing the VLAN's owning node means that
+  subnet's hosts lose their gateway. `br-core1` picked up `redistribute
+  bgp` under `router ospf` so branch-side OSPF also carries routes
+  learned from the PE-CE eBGP sessions.
 
 **Known runtime workaround — `ldpd` stuck after boot:**
 

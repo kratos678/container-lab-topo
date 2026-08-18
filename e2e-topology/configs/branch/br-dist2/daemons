@@ -1,7 +1,7 @@
 zebra=yes
 ospfd=yes
 staticd=yes
-vrrpd=yes
+vrrpd=no
 
 watchfrr_enable=yes
 vtysh_enable=yes
