@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Generates a mixed traffic profile from br-h1 to the DC hosts (dc-h1/dc-h2)
-using wireblast (https://github.com/atoonk/wireblast), split by percentage
-across three traffic "types":
+Generates a mixed traffic profile from a source node (br-h1 by default) to
+the DC hosts (dc-h1/dc-h2) using wireblast (https://github.com/atoonk/
+wireblast), split by percentage across three traffic "types":
 
   voice - small fixed-size UDP flows on a voice-like port. Approximates a
           G.711 20ms RTP stream (218-byte frames: 14 Eth + 20 IP + 8 UDP +
@@ -21,29 +21,54 @@ design, not a hack. --mix percentages split the aggregate --total-pps
 budget across the three types, then split evenly again across however
 many --dst-nodes you target.
 
+--src-node picks where traffic originates. br-h1/dc-h1/dc-h2 resolve
+automatically (short name -> container/interface/IP below); any other
+node needs --src-iface and --src-ip given explicitly, since a router's
+data-plane interface and address aren't a single obvious default the way
+a single-homed end host's are.
+
 Requires the wireblast binary (not included) available locally for
---deploy, or already present in br-h1 at REMOTE_BINARY.
+--deploy, or already present in the source node at REMOTE_BINARY.
 """
 import argparse
 import subprocess
 import sys
 
-SRC_NODE = "clab-e2e-topology-br-h1"
-SRC_IFACE = "eth1"
-SRC_IP = "10.1.10.11"
-
-# Static IP map (routing already goes through the branch/ISP/DC fabric, so
-# these don't need to be directly-connected subnets - see the "point it at
-# a router and let it forward" case in wireblast's CIDR-destinations docs).
-DST_IPS = {
-    "dc-h1": "10.2.110.11",
-    "dc-h2": "10.2.120.11",
+# Known end hosts: short name -> (container name suffix, iface, IP). Routers
+# and switches aren't listed here on purpose - use --src-iface/--src-ip for
+# anything not in this table.
+NODES = {
+    "br-h1": {"iface": "eth1", "ip": "10.1.10.11"},
+    "dc-h1": {"iface": "eth1", "ip": "10.2.110.11"},
+    "dc-h2": {"iface": "eth1", "ip": "10.2.120.11"},
 }
 
 LOCAL_BINARY = "/root/wireblast"
 REMOTE_BINARY = "/usr/local/bin/wireblast"
 
 TRAFFIC_TYPES = ["voice", "web", "udp"]
+
+
+def normalize_node_name(name):
+    if not name.startswith("clab-e2e-topology-"):
+        return f"clab-e2e-topology-{name}"
+    return name
+
+
+def resolve_src(args):
+    """Returns (container_name, iface, ip) for --src-node, using the NODES
+    table for known hosts and requiring explicit overrides otherwise."""
+    short = args.src_node
+    if short in NODES:
+        iface = args.src_iface or NODES[short]["iface"]
+        ip = args.src_ip or NODES[short]["ip"]
+        return normalize_node_name(short), iface, ip
+    if not args.src_iface or not args.src_ip:
+        raise ValueError(
+            f"'{short}' isn't one of {list(NODES)} - give --src-iface and "
+            f"--src-ip explicitly for any other node"
+        )
+    return normalize_node_name(short), args.src_iface, args.src_ip
 
 
 def parse_mix(spec):
@@ -86,40 +111,40 @@ def check_running(node):
     return res.stdout.strip() == "true"
 
 
-def deploy_binary():
-    print("\033[1;34m[SYSTEM]\033[0m Deploying wireblast binary to br-h1...")
-    if not check_running(SRC_NODE):
-        print(f" [\033[91mOFFLINE\033[0m] {SRC_NODE} is not running.")
+def deploy_binary(src_node):
+    print(f"\033[1;34m[SYSTEM]\033[0m Deploying wireblast binary to {src_node}...")
+    if not check_running(src_node):
+        print(f" [\033[91mOFFLINE\033[0m] {src_node} is not running.")
         return False
-    cp = subprocess.run(["docker", "cp", LOCAL_BINARY, f"{SRC_NODE}:{REMOTE_BINARY}"],
+    cp = subprocess.run(["docker", "cp", LOCAL_BINARY, f"{src_node}:{REMOTE_BINARY}"],
                          capture_output=True, text=True)
     if cp.returncode != 0:
-        print(f" [\033[91mFAILED\033[0m] copy to {SRC_NODE}: {cp.stderr.strip()}")
+        print(f" [\033[91mFAILED\033[0m] copy to {src_node}: {cp.stderr.strip()}")
         return False
-    subprocess.run(["docker", "exec", "-u", "0", SRC_NODE, "chmod", "+x", REMOTE_BINARY],
+    subprocess.run(["docker", "exec", "-u", "0", src_node, "chmod", "+x", REMOTE_BINARY],
                     capture_output=True, text=True)
-    print(f" [\033[92mOK\033[0m] Deployed to {SRC_NODE}.")
+    print(f" [\033[92mOK\033[0m] Deployed to {src_node}.")
     return True
 
 
-def stop_all(dry_run=False):
-    cmd = ["docker", "exec", "-u", "0", SRC_NODE, "pkill", "-f", "wireblast"]
+def stop_all(src_node, dry_run=False):
+    cmd = ["docker", "exec", "-u", "0", src_node, "pkill", "-f", "wireblast"]
     if dry_run:
         print(f"[DRY-RUN] {' '.join(cmd)}")
         return
     res = subprocess.run(cmd, capture_output=True, text=True)
     if res.returncode == 0:
-        print(f" [\033[92mSTOPPED\033[0m] Terminated running wireblast processes on {SRC_NODE}.")
+        print(f" [\033[92mSTOPPED\033[0m] Terminated running wireblast processes on {src_node}.")
     else:
-        print(f" [\033[90mIDLE\033[0m] No running wireblast processes found on {SRC_NODE}.")
+        print(f" [\033[90mIDLE\033[0m] No running wireblast processes found on {src_node}.")
 
 
-def build_command(binary, ttype, pps, duration, dst_ip, flows, args):
+def build_command(binary, src_node, src_iface, src_ip, ttype, pps, duration, dst_ip, flows, args):
     cmd = [
-        "docker", "exec", "-u", "0", "-d", SRC_NODE,
+        "docker", "exec", "-u", "0", "-d", src_node,
         binary, "--no-tui", "--start",
-        "-i", SRC_IFACE,
-        "--src-ip", SRC_IP, "--dst-ip", dst_ip,
+        "-i", src_iface,
+        "--src-ip", src_ip, "--dst-ip", dst_ip,
         "--pps", str(pps), "--duration", duration,
         "--flows", str(flows),
     ]
@@ -138,11 +163,17 @@ def build_command(binary, ttype, pps, duration, dst_ip, flows, args):
 
 def main():
     p = argparse.ArgumentParser(
-        description="Mixed voice/web/UDP traffic generator from br-h1 to the DC hosts, using wireblast.",
+        description="Mixed voice/web/UDP traffic generator to the DC hosts, using wireblast.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    p.add_argument("--dst-nodes", nargs="+", default=["dc-h1", "dc-h2"], choices=list(DST_IPS),
+    p.add_argument("--src-node", default="br-h1",
+                   help="node to originate traffic from (default: br-h1). "
+                        "br-h1/dc-h1/dc-h2 resolve automatically; anything else "
+                        "needs --src-iface and --src-ip too")
+    p.add_argument("--src-iface", help="source interface (required for a --src-node not in the known table)")
+    p.add_argument("--src-ip", help="source IP (required for a --src-node not in the known table)")
+    p.add_argument("--dst-nodes", nargs="+", default=["dc-h1", "dc-h2"], choices=list(NODES),
                    help="destination hosts by short name (default: dc-h1 dc-h2)")
     p.add_argument("--mix", default="voice=20,web=50,udp=30",
                    help="traffic-type percentages, e.g. 'voice=30,web=50,udp=20' (must sum to 100)")
@@ -162,16 +193,27 @@ def main():
                    help="frame size override for web SYN traffic (default: wireblast's own default)")
     p.add_argument("--udp-packet-size", type=int, default=512,
                    help="frame size for the udp traffic type (default: 512)")
-    p.add_argument("--binary", default=REMOTE_BINARY, help="path to wireblast inside br-h1")
-    p.add_argument("--deploy", action="store_true", help="copy the wireblast binary into br-h1 first")
-    p.add_argument("--stop", action="store_true", help="kill all running wireblast processes on br-h1 and exit")
+    p.add_argument("--binary", default=REMOTE_BINARY, help="path to wireblast inside the source node")
+    p.add_argument("--deploy", action="store_true", help="copy the wireblast binary into the source node first")
+    p.add_argument("--stop", action="store_true", help="kill all running wireblast processes on the source node and exit")
     p.add_argument("--dry-run", action="store_true", help="print the commands without running them")
     args = p.parse_args()
 
+    try:
+        src_node, src_iface, src_ip = resolve_src(args)
+    except ValueError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
+
     if args.stop:
-        print("\033[1;34m[SYSTEM]\033[0m Stopping all wireblast processes on br-h1...")
-        stop_all(dry_run=args.dry_run)
+        print(f"\033[1;34m[SYSTEM]\033[0m Stopping all wireblast processes on {src_node}...")
+        stop_all(src_node, dry_run=args.dry_run)
         sys.exit(0)
+
+    if args.src_node in args.dst_nodes:
+        print(f"error: --src-node '{args.src_node}' is also in --dst-nodes - can't generate traffic to itself",
+              file=sys.stderr)
+        sys.exit(1)
 
     try:
         mix = parse_mix(args.mix)
@@ -184,17 +226,18 @@ def main():
         sys.exit(1)
 
     total_pps = parse_pps(args.total_pps)
-    dst_ips = [DST_IPS[n] for n in args.dst_nodes]
+    dst_ips = [NODES[n]["ip"] for n in args.dst_nodes]
 
     print("=" * 78)
-    print("       WIREBLAST TRAFFIC MIX: br-h1 -> " + ", ".join(args.dst_nodes))
+    print(f"       WIREBLAST TRAFFIC MIX: {args.src_node} -> " + ", ".join(args.dst_nodes))
     print("=" * 78)
+    print(f"Source: {src_node} ({src_iface}, {src_ip})")
     print(f"Total PPS budget: {total_pps:,}   Duration: {args.duration}   "
           f"Destinations: {len(dst_ips)}")
     print("-" * 78)
 
     if args.deploy:
-        if not deploy_binary():
+        if not deploy_binary(src_node):
             sys.exit(1)
 
     plan = []
@@ -214,7 +257,8 @@ def main():
 
     launched = 0
     for ttype, _pct, dst_name, dst_ip, per_dst_pps in plan:
-        cmd = build_command(args.binary, ttype, per_dst_pps, args.duration, dst_ip, args.flows, args)
+        cmd = build_command(args.binary, src_node, src_iface, src_ip,
+                             ttype, per_dst_pps, args.duration, dst_ip, args.flows, args)
         if args.dry_run:
             print(f"[DRY-RUN] {' '.join(cmd)}")
             launched += 1

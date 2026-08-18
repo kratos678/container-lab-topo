@@ -236,21 +236,36 @@ Two standalone helper scripts in `tests/` for load/traffic testing beyond
   ./tests/wireblast_mesh.py --stop   # tear down running flows
   ```
 - **`wireblast_traffic_mix.py`** — same `wireblast` dependency, but shapes
-  three named traffic types from `br-h1` to `dc-h1`/`dc-h2` at once, split
-  by percentage of an aggregate PPS budget: `voice` (small fixed-size UDP,
-  approximating a G.711 RTP stream), `web` (stateless TCP SYNs to port
-  443 — wireblast has no real HTTP/TLS payload support, so this is
-  SYN-rate traffic shaped like HTTPS connection attempts, not real
-  requests), and `udp` (plain UDP to a port you choose). All three run
-  concurrently for the same duration, not as sequential slices of it —
-  wireblast explicitly supports reusing an already-attached XDP program
-  on one interface, so several processes sharing `eth1` at once is by
-  design.
+  three named traffic types from a source node (`br-h1` by default) to
+  `dc-h1`/`dc-h2` at once, split by percentage of an aggregate PPS
+  budget: `voice` (small fixed-size UDP, approximating a G.711 RTP
+  stream), `web` (stateless TCP SYNs to port 443 — wireblast has no real
+  HTTP/TLS payload support, so this is SYN-rate traffic shaped like
+  HTTPS connection attempts, not real requests), and `udp` (plain UDP to
+  a port you choose). All three run concurrently for the same duration,
+  not as sequential slices of it — wireblast explicitly supports reusing
+  an already-attached XDP program on one interface, so several processes
+  sharing one interface at once is by design.
+
+  `--src-node` picks where traffic originates: `br-h1`/`dc-h1`/`dc-h2`
+  resolve automatically; any other node (a router, say) needs
+  `--src-iface`/`--src-ip` given explicitly, since there's no one obvious
+  default interface/address the way there is for a single-homed host.
   ```bash
   ./tests/wireblast_traffic_mix.py --deploy \
       --mix voice=20,web=50,udp=30 --udp-port 9500 \
       --total-pps 200000 --duration 60s
-  ./tests/wireblast_traffic_mix.py --stop   # tear down running flows
+
+  # from a different node - dc-h1 is a known host, resolves automatically
+  ./tests/wireblast_traffic_mix.py --src-node dc-h1 --dst-nodes dc-h2 \
+      --mix voice=100,web=0,udp=0 --total-pps 50000 --duration 30s
+
+  # from an arbitrary node not in the known-host table
+  ./tests/wireblast_traffic_mix.py --src-node pe1 --src-iface eth1 \
+      --src-ip 100.64.1.2 --dst-nodes dc-h1 \
+      --mix voice=0,web=100,udp=0 --total-pps 50000 --duration 30s
+
+  ./tests/wireblast_traffic_mix.py --stop   # tear down running flows on the source node
   ```
 
 ## SNMP
