@@ -217,6 +217,25 @@ docker exec -it clab-e2e-topology-border1 vtysh -c "show bgp vrf TENANT-A ipv4 u
 docker exec -it clab-e2e-topology-br-dist1 vtysh -c "show ip ospf neighbor"
 ```
 
+Two standalone helper scripts in `tests/` for load/traffic testing beyond
+`run-tests.sh`'s pass/fail checks:
+
+- **`link_utilization.py`** — polls `/proc/net/dev` across every running
+  `clab-e2e-topology-*` container and prints live Rx/Tx bit-rate per
+  interface (management `eth0` excluded). No external dependencies.
+  ```bash
+  ./tests/link_utilization.py -i 2 -c 0   # continuous, 2s interval
+  ```
+- **`wireblast_mesh.py`** — drives a `wireblast` traffic-generator binary
+  (not included; expects it at `/root/wireblast` on the host, or already
+  present at `/usr/local/bin/wireblast` in the target containers) to
+  generate a full-mesh of flows between the branch and DC hosts, useful
+  for exercising the data plane under load rather than a single ping.
+  ```bash
+  ./tests/wireblast_mesh.py --deploy --bidirectional --pps 50000 --duration 60s
+  ./tests/wireblast_mesh.py --stop   # tear down running flows
+  ```
+
 ## SNMP
 
 Every FRR/switch node runs the same SNMP setup as the earlier 2-node lab:
