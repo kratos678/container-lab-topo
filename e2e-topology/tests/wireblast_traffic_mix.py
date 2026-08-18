@@ -2,7 +2,7 @@
 """
 Generates a mixed traffic profile from a source node (br-h1 by default) to
 the DC hosts (dc-h1/dc-h2) using wireblast (https://github.com/atoonk/
-wireblast), split by percentage across three traffic "types":
+wireblast), split by percentage across four traffic "types":
 
   voice - small fixed-size UDP flows on a voice-like port. Approximates a
           G.711 20ms RTP stream (218-byte frames: 14 Eth + 20 IP + 8 UDP +
@@ -12,13 +12,17 @@ wireblast), split by percentage across three traffic "types":
           traffic shaped like a wave of HTTPS connection attempts, not real
           TLS/HTTP payloads.
   udp   - plain UDP to a port you choose, for anything else.
+  imix  - wireblast's native --mode imix: UDP framing with the classic
+          Internet Mix size distribution (64B x7, 594B x4, 1518B x1, mean
+          362B). No --packet-size is passed for it - the distribution is
+          built in and wireblast ignores --packet-size in this mode.
 
-All three run CONCURRENTLY for the same --duration, not as sequential
+All four run CONCURRENTLY for the same --duration, not as sequential
 slices of it - wireblast explicitly supports reusing an already-attached
 XDP program on one interface (internal/dataplane/runner.go's "Reused"
 handling), so multiple wireblast processes sharing eth1 at once is by
 design, not a hack. --mix percentages split the aggregate --total-pps
-budget across the three types, then split evenly again across however
+budget across the four types, then split evenly again across however
 many --dst-nodes you target.
 
 --src-node picks where traffic originates. br-h1/dc-h1/dc-h2 resolve
@@ -46,7 +50,7 @@ NODES = {
 LOCAL_BINARY = "/root/wireblast"
 REMOTE_BINARY = "/usr/local/bin/wireblast"
 
-TRAFFIC_TYPES = ["voice", "web", "udp"]
+TRAFFIC_TYPES = ["voice", "web", "udp", "imix"]
 
 
 def normalize_node_name(name):
@@ -158,12 +162,14 @@ def build_command(binary, src_node, src_iface, src_ip, ttype, pps, duration, dst
     elif ttype == "udp":
         cmd += ["--mode", "udp", "--dst-port", str(args.udp_port),
                 "--packet-size", str(args.udp_packet_size)]
+    elif ttype == "imix":
+        cmd += ["--mode", "imix", "--dst-port", str(args.imix_port)]
     return cmd
 
 
 def main():
     p = argparse.ArgumentParser(
-        description="Mixed voice/web/UDP traffic generator to the DC hosts, using wireblast.",
+        description="Mixed voice/web/UDP/imix traffic generator to the DC hosts, using wireblast.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -175,8 +181,8 @@ def main():
     p.add_argument("--src-ip", help="source IP (required for a --src-node not in the known table)")
     p.add_argument("--dst-nodes", nargs="+", default=["dc-h1", "dc-h2"], choices=list(NODES),
                    help="destination hosts by short name (default: dc-h1 dc-h2)")
-    p.add_argument("--mix", default="voice=20,web=50,udp=30",
-                   help="traffic-type percentages, e.g. 'voice=30,web=50,udp=20' (must sum to 100)")
+    p.add_argument("--mix", default="voice=20,web=40,udp=20,imix=20",
+                   help="traffic-type percentages, e.g. 'voice=30,web=40,udp=10,imix=20' (must sum to 100)")
     p.add_argument("--total-pps", default="50000",
                    help="aggregate packet-rate budget across all types and destinations (e.g. 1M, 500k)")
     p.add_argument("--duration", default="60s", help="how long to run (wireblast -d syntax, e.g. 60s, 5m)")
@@ -193,6 +199,9 @@ def main():
                    help="frame size override for web SYN traffic (default: wireblast's own default)")
     p.add_argument("--udp-packet-size", type=int, default=512,
                    help="frame size for the udp traffic type (default: 512)")
+    p.add_argument("--imix-port", type=int, default=8080,
+                   help="destination port for imix traffic (default: 8080; frame sizes are "
+                        "wireblast's built-in IMIX distribution, not configurable here)")
     p.add_argument("--binary", default=REMOTE_BINARY, help="path to wireblast inside the source node")
     p.add_argument("--deploy", action="store_true", help="copy the wireblast binary into the source node first")
     p.add_argument("--stop", action="store_true", help="kill all running wireblast processes on the source node and exit")
